@@ -1,0 +1,423 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
+import { buildProductSlugMap, getProductTitle } from '../../lib/products';
+import { slugifyLabel } from '../../lib/slug';
+
+type Category = {
+	id?: number;
+	titolo_categoria?: string;
+};
+
+type CategoryRelation = {
+	Categorie_id?: Category | number | null;
+};
+
+type Variant = {
+	id?: number;
+	codice_variante?: string;
+	diametro_fresa?: string;
+	diametro_gambo?: string;
+	lunghezza_totale?: string;
+	lunghezza_tagliente?: string;
+	z?: string;
+	prezzo?: number | string;
+};
+
+type VariantRelation = {
+	Varianti_id?: Variant | number | null;
+};
+
+type Tag = {
+	id?: number;
+	titolo_tag?: string;
+};
+
+type TagRelation = {
+	Tags_id?: Tag | number | null;
+};
+
+type Product = {
+	id?: number;
+	status?: string;
+	titolo?: string;
+	codice_prodotto?: string;
+	descrizione_breve?: string;
+	descrizione_estesa?: string;
+	imballo?: string;
+	foto_prodotto?: string;
+	Categoria?: CategoryRelation[];
+	varianti_prodotto?: VariantRelation[];
+	Tag?: TagRelation[];
+};
+
+function resolveImageSrc(value: string | undefined) {
+	return directusAssetUrl(value, {
+		width: 1200,
+		height: 900,
+		quality: 74,
+		format: 'webp',
+	});
+}
+
+function getCategories(product: Product) {
+	if (!Array.isArray(product?.Categoria)) return [];
+	return product.Categoria
+		.map((entry) => {
+			const category = entry?.Categorie_id && typeof entry.Categorie_id === 'object' ? entry.Categorie_id : null;
+			if (!category || typeof category.id !== 'number') return null;
+			return {
+				id: category.id,
+				titolo: category.titolo_categoria || '',
+				slug: slugifyLabel(category.titolo_categoria) || String(category.id),
+			};
+		})
+		.filter((entry): entry is { id: number; titolo: string; slug: string } => Boolean(entry));
+}
+
+function getVariants(product: Product) {
+	if (!Array.isArray(product?.varianti_prodotto)) return [];
+	return product.varianti_prodotto
+		.map((entry) => {
+			const variant = entry?.Varianti_id && typeof entry.Varianti_id === 'object' ? entry.Varianti_id : null;
+			return variant && typeof variant === 'object' ? variant : null;
+		})
+		.filter((entry): entry is Variant => Boolean(entry));
+}
+
+function getTags(product: Product) {
+	if (!Array.isArray(product?.Tag)) return [];
+	const tags = product.Tag
+		.map((entry) => {
+			const tag = entry?.Tags_id && typeof entry.Tags_id === 'object' ? entry.Tags_id : null;
+			const label = tag?.titolo_tag?.trim() || '';
+			return label || null;
+		})
+		.filter((entry): entry is string => Boolean(entry));
+	return Array.from(new Set(tags));
+}
+
+function splitCommaValues(value: string | undefined) {
+	if (!value) return [];
+	return value
+		.split(',')
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+}
+
+function formatPrice(value: number | string | undefined) {
+	if (value === undefined || value === null || value === '') return '';
+	const parsed = typeof value === 'number' ? value : Number(value);
+	if (Number.isNaN(parsed)) return '';
+	return new Intl.NumberFormat('it-IT', {
+		style: 'currency',
+		currency: 'EUR',
+		minimumFractionDigits: 2,
+	}).format(parsed);
+}
+
+export async function getStaticPaths() {
+	const url = directusItemsUrl('Prodotti');
+	url.searchParams.set('fields', '*,Categoria.Categorie_id.*,varianti_prodotto.Varianti_id.*,Tag.Tags_id.*');
+	url.searchParams.set('filter[status][_eq]', 'published');
+	url.searchParams.set('limit', '-1');
+	const response = await directusFetch(url);
+	const payload = await response.json();
+	const products = Array.isArray(payload?.data) ? (payload.data as Product[]) : [];
+	const slugMap = buildProductSlugMap(products);
+
+	return products
+		.filter((product) => typeof product?.id === 'number')
+		.map((product) => ({
+			params: { slug: slugMap.get(product.id!) || String(product.id) },
+			props: { product },
+		}));
+}
+
+const { product } = Astro.props as { product: Product };
+const title = getProductTitle(product) || 'Prodotto';
+const imageSrc = resolveImageSrc(product?.foto_prodotto);
+const categories = getCategories(product);
+const variants = getVariants(product);
+const tags = getTags(product);
+const packaging = splitCommaValues(product?.imballo);
+const primaryCategory = categories[0];
+const backHref = primaryCategory ? `/prodotti/categoria/${encodeURIComponent(primaryCategory.slug)}` : '/prodotti';
+const backLabel = primaryCategory?.titolo ? `Torna a ${primaryCategory.titolo}` : 'Torna ai prodotti';
+---
+
+<BaseLayout title={title}>
+	<section class="product_detail">
+		<div class="product_detail_inner">
+			<Breadcrumbs
+				items={[
+					{ name: 'Home', href: '/' },
+					{ name: 'Prodotti', href: '/prodotti' },
+					...(primaryCategory ? [{ name: primaryCategory.titolo, href: backHref }] : []),
+					{ name: title },
+				]}
+				backHref={backHref}
+				backLabel={backLabel}
+			/>
+
+			<div class="product_hero">
+				<div class="product_hero_text">
+					<h1 class="product_title">{title}</h1>
+					{product?.codice_prodotto && (
+						<p class="product_code">Codice: {product.codice_prodotto}</p>
+					)}
+					{product?.descrizione_breve && (
+						<p class="product_short">{product.descrizione_breve}</p>
+					)}
+					{product?.descrizione_estesa && (
+						<p class="product_long">{product.descrizione_estesa}</p>
+					)}
+					{packaging.length > 0 && (
+						<div class="product_pills_group">
+							<p class="product_pills_label">Imballi disponibili</p>
+							<div class="product_pills">
+								{packaging.map((item) => (
+									<span class="product_pill">{item}</span>
+								))}
+							</div>
+						</div>
+					)}
+					{tags.length > 0 && (
+						<div class="product_pills_group">
+							<p class="product_pills_label">Tag associati</p>
+							<div class="product_pills">
+								{tags.map((item) => (
+									<span class="product_pill">{item}</span>
+								))}
+							</div>
+						</div>
+					)}
+				</div>
+				{imageSrc && (
+					<div class="product_hero_media">
+						<img src={imageSrc} alt={title} loading="eager" />
+					</div>
+				)}
+			</div>
+
+			{variants.length > 0 && (
+				<div class="product_variants">
+					<h2 class="product_variants_title">Varianti disponibili</h2>
+					<div class="product_variants_table">
+						<table>
+							<thead>
+								<tr>
+									<th>Codice variante</th>
+									<th>Diametro fresa</th>
+									<th>Diametro gambo</th>
+									<th>Lunghezza totale</th>
+									<th>Lunghezza tagliente</th>
+									<th>Z</th>
+									<th>Prezzo</th>
+								</tr>
+							</thead>
+							<tbody>
+								{variants.map((variant) => (
+									<tr>
+										<td>{variant.codice_variante || '-'}</td>
+										<td>{variant.diametro_fresa || '-'}</td>
+										<td>{variant.diametro_gambo || '-'}</td>
+										<td>{variant.lunghezza_totale || '-'}</td>
+										<td>{variant.lunghezza_tagliente || '-'}</td>
+										<td>{variant.z || '-'}</td>
+										<td>{formatPrice(variant.prezzo) || '-'}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			)}
+		</div>
+	</section>
+</BaseLayout>
+
+<style>
+	.product_detail {
+		padding: 40px 20px 70px;
+		padding-top: 165px;
+	}
+
+	.product_detail_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.product_back {
+		display: inline-flex;
+		margin-bottom: 22px;
+		color: var(--nero);
+		text-decoration: none;
+		font-weight: 600;
+		letter-spacing: 0.4px;
+		gap: 8px;
+	}
+
+	.product_back::before {
+		content: '<';
+	}
+
+	.product_hero {
+		display: grid;
+		grid-template-columns: 1.1fr 0.9fr;
+		gap: 32px;
+		background: #fff;
+		border-radius: 28px;
+		padding: 50px;
+		color: #000;
+		align-items: center;
+		box-shadow: 0 18px 38px rgba(0, 0, 0, 0.12);
+	}
+
+	.product_hero_text {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.product_title {
+		margin: 0;
+		font-size: clamp(32px, 4vw, 48px);
+		line-height: 1.05;
+		font-weight: 700;
+	}
+
+	.product_code {
+		margin: 0;
+		font-weight: 600;
+		color: var(--blu);
+	}
+
+	.product_short {
+		margin: 0;
+		font-size: 20px;
+		line-height: 1.5;
+		color: rgba(0, 0, 0, 0.85);
+	}
+
+	.product_long {
+		margin: 0;
+		font-size: 16px;
+		line-height: 1.6;
+		color: rgba(0, 0, 0, 0.7);
+		white-space: pre-line;
+	}
+
+	.product_pills_group {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.product_pills_label {
+		margin: 0;
+		font-size: 13px;
+		font-weight: 700;
+		letter-spacing: 0.4px;
+		text-transform: uppercase;
+		color: rgba(0, 0, 0, 0.6);
+	}
+
+	.product_pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.product_pill {
+		display: inline-flex;
+		align-items: center;
+		padding: 6px 12px;
+		border-radius: 999px;
+		background: rgba(0, 84, 166, 0.1);
+		color: var(--blu);
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.product_hero_media {
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.product_hero_media img {
+		width: 100%;
+		height: 100%;
+		max-height: 380px;
+		object-fit: contain;
+		border-radius: 22px;
+	}
+
+	.product_variants {
+		margin-top: 40px;
+		background: #fff;
+		border-radius: 24px;
+		padding: 32px;
+		color: #000;
+	}
+
+	.product_variants_title {
+		margin: 0 0 20px;
+		font-size: 24px;
+		font-weight: 700;
+	}
+
+	.product_variants_table {
+		overflow-x: auto;
+	}
+
+	.product_variants table {
+		width: 100%;
+		border-collapse: collapse;
+		min-width: 720px;
+	}
+
+	.product_variants thead {
+		background: #000;
+	}
+
+	.product_variants th,
+	.product_variants td {
+		text-align: left;
+		padding: 12px 14px;
+		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+		font-size: 14px;
+	}
+
+	.product_variants th {
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.6px;
+		font-size: 12px;
+		color: #fff;
+	}
+
+	@media (max-width: 900px) {
+		.product_hero {
+			grid-template-columns: 1fr;
+			padding: 36px;
+		}
+
+		.product_hero_media img {
+			max-height: 320px;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.product_hero {
+			padding: 28px;
+		}
+
+		.product_variants {
+			padding: 24px;
+		}
+	}
+</style>

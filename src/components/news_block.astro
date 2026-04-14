@@ -1,0 +1,312 @@
+---
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+import { slugifyNewsTitle } from '../lib/news-slug';
+
+interface NewsItem {
+	id?: number;
+	titolo?: string;
+	sottotitolo?: string;
+	label_link?: string;
+	link?: string;
+	immagine_copertina?: string;
+	video?: string;
+	date_created?: string;
+}
+
+interface Props {
+	titolo?: string;
+	items?: NewsItem[];
+	layout?: 'slider' | 'grid';
+}
+
+const { titolo = '', items = [], layout = 'slider' } = Astro.props;
+
+const sliderId = `news-slider-${Math.random().toString(36).slice(2)}`;
+
+function normalizeNews(input: unknown): NewsItem[] {
+	if (!Array.isArray(input)) return [];
+	return input
+		.map((entry) => {
+			if (!entry || typeof entry !== 'object') return null;
+			if (
+				'titolo' in entry ||
+				'sottotitolo' in entry ||
+				'label_link' in entry ||
+				'link' in entry ||
+				'immagine_copertina' in entry ||
+				'video' in entry ||
+				'date_created' in entry
+			) {
+				return entry as NewsItem;
+			}
+			return null;
+		})
+		.filter((entry): entry is NewsItem => Boolean(entry));
+}
+
+async function fetchNewsItems(): Promise<NewsItem[]> {
+	try {
+		const url = directusItemsUrl('News');
+		url.searchParams.set(
+			'fields',
+			'id,titolo,sottotitolo,label_link,link,immagine_copertina,video,status,sort,date_created'
+		);
+		url.searchParams.set('sort', '-sort,-date_created');
+		url.searchParams.set('filter[status][_eq]', 'published');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return normalizeNews(payload?.data);
+	} catch (error) {
+		console.error('Errore caricando le news:', error);
+		return [];
+	}
+}
+
+const providedItems = normalizeNews(items);
+const newsItems = providedItems.length > 0 ? providedItems : await fetchNewsItems();
+const hasMultipleSlides = newsItems.length > 1;
+const isGridLayout = layout === 'grid';
+
+function resolveImageSrc(value: string | undefined) {
+	return directusAssetUrl(value, {
+		width: 900,
+		height: 675,
+		quality: 72,
+		format: 'webp',
+	});
+}
+
+function formatNewsDate(value: string | undefined) {
+	if (!value) return '';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return '';
+	const formatted = new Intl.DateTimeFormat('it-IT', {
+		day: 'numeric',
+		month: 'long',
+		year: 'numeric',
+	}).format(date);
+	const parts = formatted.split(' ');
+	if (parts.length < 3) return formatted;
+	parts[1] = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+	return parts.join(' ');
+}
+
+function buildNewsSlugMap(entries: NewsItem[]) {
+	const map = new Map<number, string>();
+	const usedSlugs = new Set<string>();
+
+	for (const entry of entries) {
+		if (typeof entry.id !== 'number') continue;
+		const baseSlug = slugifyNewsTitle(entry.titolo) || String(entry.id);
+		let resolvedSlug = baseSlug;
+		if (usedSlugs.has(resolvedSlug)) {
+			resolvedSlug = `${baseSlug}-${entry.id}`;
+		}
+		usedSlugs.add(resolvedSlug);
+		map.set(entry.id, resolvedSlug);
+	}
+
+	return map;
+}
+
+const newsSlugMap = buildNewsSlugMap(newsItems);
+---
+
+{newsItems.length > 0 && (
+	<section class="news_block_section" data-aos="fade-up" data-aos-duration="1500">
+			<div class="news_block_inner">
+				{titolo && <h2 class="news_block_title">{titolo}</h2>}
+				{isGridLayout ? (
+					<div class="news_block_grid">
+						{newsItems.map((news) => {
+							const newsSlug = typeof news.id === 'number' ? newsSlugMap.get(news.id) || '' : '';
+							const href = newsSlug ? `/news/${newsSlug}` : news.id ? `/news/${news.id}` : news.link || '';
+						const hasLabelLink = Boolean(news.label_link?.trim());
+						const Tag = href ? 'a' : 'div';
+						const imageSrc = resolveImageSrc(news.immagine_copertina);
+						const formattedDate = formatNewsDate(news.data_news || news.date_created);
+
+						return (
+							<Tag class="news_card" href={href || undefined}>
+								{imageSrc && (
+									<div class="news_card_media">
+										<img src={imageSrc} alt={news.titolo || ''} loading="lazy" />
+									</div>
+								)}
+								<div class="news_card_container">
+									{formattedDate && <p class="news_card_date">{formattedDate}</p>}
+									{news.titolo && <h3 class="news_card_title">{news.titolo}</h3>}
+									{news.sottotitolo && <p class="news_card_subtitle">{news.sottotitolo}</p>}
+									{hasLabelLink && <span class="news_card_link">{news.label_link}</span>}
+								</div>
+							</Tag>
+						);
+						})}
+					</div>
+				) : (
+					<div class="news_block swiper" id={sliderId} data-swiper-autoplay="true">
+						<div class="swiper-wrapper">
+							{newsItems.map((news) => {
+								const newsSlug = typeof news.id === 'number' ? newsSlugMap.get(news.id) || '' : '';
+								const href = newsSlug ? `/news/${newsSlug}` : news.id ? `/news/${news.id}` : news.link || '';
+								const hasLabelLink = Boolean(news.label_link?.trim());
+								const Tag = href ? 'a' : 'div';
+								const imageSrc = resolveImageSrc(news.immagine_copertina);
+								const formattedDate = formatNewsDate(news.data_news || news.date_created);
+
+								return (
+								<Tag class="swiper-slide news_card" href={href || undefined}>
+									{imageSrc && (
+										<div class="news_card_media">
+											<img src={imageSrc} alt={news.titolo || ''} loading="lazy" />
+										</div>
+									)}
+									<div class="news_card_container">
+										{formattedDate && <p class="news_card_date">{formattedDate}</p>}
+										{news.titolo && <h3 class="news_card_title">{news.titolo}</h3>}
+										{news.sottotitolo && <p class="news_card_subtitle">{news.sottotitolo}</p>}
+										{hasLabelLink && <span class="news_card_link">{news.label_link}</span>}
+									</div>
+									</Tag>
+								);
+							})}
+						</div>
+						{hasMultipleSlides && <div class="swiper-pagination"></div>}
+					</div>
+			)}
+		</div>
+	</section>
+)}
+
+<style>
+	.news_block_section {
+		padding: 40px 20px 20px;
+		margin-bottom:70px;
+	}
+
+	.news_block_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.news_block_title {
+		margin: 0 0 24px;
+		color: var(--bianco);
+		font-size: clamp(28px, 4vw, 42px);
+		border-bottom: 4px solid #ff4000;
+		padding-bottom: 20px;
+	}
+
+	.news_block {
+		padding-bottom: 36px;
+	}
+
+	.news_block_grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 24px;
+		align-items: stretch;
+	}
+
+	.news_card {
+		background: #fff;
+		overflow: hidden;
+		border-radius: 8px;
+		display: flex;
+		flex-direction: column;
+		min-height: 420px;
+	}
+
+	a.news_card:hover {
+		transform: translateY(-4px);
+		box-shadow: 0 16px 30px rgba(0, 0, 0, 0.15);
+	}
+
+	.news_card_media {
+		overflow: hidden;
+		border-top-right-radius: 20px;
+		border-top-left-radius: 20px;
+		aspect-ratio: 4 / 3;
+	}
+
+	.news_card_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.news_card_title {
+		margin: 4px 0 0;
+		font-size: 23px;
+		line-height: 23px;
+		font-weight: bold;
+		margin-bottom:10px;
+	}
+
+	.news_card_date {
+		margin: 0;
+		font-size: 13px;
+		font-weight: 600;
+		letter-spacing: 0.4px;
+		text-transform: none;
+		opacity: 0.75;
+	}
+
+	.news_card_subtitle {
+		margin: 0;
+		font-size: 16px;
+		line-height: 1.45;
+		color: rgba(0, 0, 0, 0.75);
+	}
+
+	.news_card_link {
+		margin-top: auto;
+		align-self: flex-start;
+		font-weight: bold;
+		color:var(--blu);
+		margin-top:20px;
+		display: block;
+	}
+
+	.news_card_container {
+		padding: 20px;
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.news_block :global(.swiper-wrapper) {
+		align-items: stretch;
+	}
+
+	.news_block :global(.swiper-slide) {
+		height: auto;
+	}
+
+	.news_block :global(.swiper-pagination) {
+		bottom: 4px;
+	}
+
+	.news_block :global(.swiper-pagination-bullet) {
+		background: var(--blu);
+		opacity: 0.45;
+	}
+
+	.news_block :global(.swiper-pagination-bullet-active) {
+		background: var(--blu);
+		opacity: 1;
+	}
+
+	@media (max-width: 960px) {
+		.news_block_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 640px) {
+		.news_block_grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

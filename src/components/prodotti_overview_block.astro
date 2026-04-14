@@ -1,0 +1,488 @@
+---
+import Breadcrumbs from './Breadcrumbs.astro';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+import { buildProductSlugMap, getProductTitle } from '../lib/products';
+import { slugifyLabel } from '../lib/slug';
+
+interface Category {
+	id?: number | string;
+	status?: string;
+	sort?: number;
+	titolo_categoria?: string;
+	descrizione_categoria?: string;
+	immagine_categoria?: unknown;
+	immagine?: string;
+	image?: string;
+	parent?: unknown;
+	parent_categoria?: unknown;
+	parent_id?: unknown;
+	categoria_padre?: unknown;
+	categoria_padre_id?: unknown;
+	[key: string]: unknown;
+}
+
+interface CategoryRelation {
+	Categorie_id?: Category | number | null;
+}
+
+interface Product {
+	id?: number;
+	status?: string;
+	sort?: number;
+	titolo?: string;
+	foto_prodotto?: string;
+	Categoria?: CategoryRelation[];
+	Tag?: { Tags_id?: { titolo_tag?: string } | number | null }[];
+	[key: string]: unknown;
+}
+
+function resolveImageSrc(value: string | undefined, width = 760) {
+	return directusAssetUrl(value, {
+		width,
+		quality: 72,
+		format: 'webp',
+	});
+}
+
+function resolveAssetId(value: unknown): string {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object') {
+		const id = (value as { id?: string | null }).id;
+		return typeof id === 'string' ? id : '';
+	}
+	return '';
+}
+
+function extractParentId(raw: unknown): string {
+	if (raw === null || raw === undefined || raw === '') return '';
+	if (typeof raw === 'number' || typeof raw === 'string') return String(raw).trim();
+	if (typeof raw === 'object' && raw) {
+		const id = (raw as { id?: number | string | null }).id;
+		if (id === null || id === undefined) return '';
+		return String(id).trim();
+	}
+	return '';
+}
+
+function getParentKey(category: Category): string {
+	const candidates = [
+		category.parent_categoria,
+		category.parent,
+		category.parent_id,
+		category.categoria_padre,
+		category.categoria_padre_id,
+		category.parent_category,
+		category.parentCategory,
+		category.padre,
+	] as unknown[];
+
+	for (const value of candidates) {
+		const resolved = extractParentId(value);
+		if (resolved) return resolved;
+	}
+
+	return '';
+}
+
+async function fetchParentCategories(): Promise<Category[]> {
+	try {
+		const url = directusItemsUrl('Categorie');
+		url.searchParams.set('fields', '*');
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('filter[parent_categoria][_null]', 'true');
+		url.searchParams.set('sort', 'sort,titolo_categoria');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		const categories = Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
+		return categories.filter((category) => !getParentKey(category));
+	} catch (error) {
+		console.error('Errore caricando le categorie padre prodotti:', error);
+		return [];
+	}
+}
+
+async function fetchProducts(): Promise<Product[]> {
+	try {
+		const url = directusItemsUrl('Prodotti');
+		url.searchParams.set(
+			'fields',
+			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Tag.Tags_id.titolo_tag'
+		);
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('limit', '-1');
+		url.searchParams.set('sort', 'sort,codice_prodotto');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Product[]) : [];
+	} catch (error) {
+		console.error('Errore caricando i prodotti:', error);
+		return [];
+	}
+}
+
+function extractProductTags(product: Product) {
+	if (!Array.isArray(product?.Tag)) return [];
+	const tags = product.Tag
+		.map((entry) => {
+			const related = entry?.Tags_id && typeof entry.Tags_id === 'object' ? entry.Tags_id : null;
+			const label = related?.titolo_tag?.trim() || '';
+			if (!label) return null;
+			return { slug: slugifyLabel(label) || label.toLowerCase(), label };
+		})
+		.filter((entry): entry is { slug: string; label: string } => Boolean(entry));
+
+	return Array.from(new Map(tags.map((entry) => [entry.slug, entry.label])), ([slug, label]) => ({ slug, label }));
+}
+
+const categories = await fetchParentCategories();
+const products = await fetchProducts();
+const productSlugMap = buildProductSlugMap(products);
+
+const usedSlugs = new Set<string>();
+const categoryCards = categories
+	.filter((category) => category?.id !== null && category?.id !== undefined)
+	.map((category) => {
+		const baseSlug = slugifyLabel(category.titolo_categoria) || String(category.id || '').trim();
+		if (!baseSlug) return null;
+		let slug = baseSlug;
+		if (usedSlugs.has(slug)) slug = `${baseSlug}-${String(category.id)}`;
+		usedSlugs.add(slug);
+		const imageField =
+			resolveAssetId(category.immagine_categoria) ||
+			resolveAssetId(category.immagine) ||
+			resolveAssetId(category.image);
+
+		return {
+			title: category.titolo_categoria || 'Categoria',
+			description: category.descrizione_categoria || '',
+			href: `/prodotti/categoria/${encodeURIComponent(slug)}`,
+			imageSrc: resolveImageSrc(imageField),
+		};
+	})
+	.filter(
+		(entry): entry is { title: string; description: string; href: string; imageSrc: string } => Boolean(entry)
+	);
+
+const productsData = products
+	.map((product) => {
+		if (typeof product.id !== 'number') return null;
+		const slug = productSlugMap.get(product.id) || '';
+		if (!slug) return null;
+		const title = getProductTitle(product) || 'Prodotto';
+		const categories = Array.isArray(product.Categoria)
+			? product.Categoria
+					.map((entry) => {
+						const category = entry?.Categorie_id && typeof entry.Categorie_id === 'object' ? entry.Categorie_id : null;
+						return category?.titolo_categoria?.trim() || '';
+					})
+					.filter(Boolean)
+			: [];
+		const tags = extractProductTags(product);
+
+		return {
+			title,
+			href: `/prodotti/${slug}`,
+			imageSrc: resolveImageSrc(product.foto_prodotto),
+			searchText: [title, ...categories, ...tags.map((tag) => tag.label)].join(' ').toLowerCase(),
+		};
+	})
+	.filter((entry): entry is { title: string; href: string; imageSrc: string; searchText: string } => Boolean(entry));
+---
+
+<section class="products_overview" data-aos="fade-up" data-aos-duration="1500">
+	<div class="products_overview_inner">
+		<Breadcrumbs
+			items={[
+				{ name: 'Home', href: '/' },
+				{ name: 'Prodotti' },
+			]}
+			backHref="/"
+			backLabel="Torna alla home"
+		/>
+
+		<form class="products_search" data-products-overview-search-form role="search">
+			<input
+				type="search"
+				class="products_search_input"
+				data-products-overview-search
+				placeholder="Cerca per prodotto, categoria o tag"
+				aria-label="Cerca prodotti"
+			/>
+			<button class="products_search_button" type="submit">Cerca</button>
+		</form>
+
+		<div class="products_overview_results" data-products-overview-results hidden>
+			<div class="products_results_head">
+				<p class="products_results_count" data-products-overview-count>{productsData.length} prodotti</p>
+				<button class="products_clear_filters" type="button" data-products-overview-clear>Reset ricerca</button>
+			</div>
+
+			<div class="products_grid" data-products-overview-grid>
+				{productsData.map((entry) => (
+					<a class="products_card" href={entry.href} data-search={entry.searchText}>
+						{entry.imageSrc && (
+							<div class="products_card_media">
+								<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+							</div>
+						)}
+						<h3 class="products_card_title">{entry.title}</h3>
+					</a>
+				))}
+			</div>
+
+			<p class="products_empty" data-products-overview-empty>Nessun prodotto trovato.</p>
+		</div>
+
+		{categoryCards.length > 0 && (
+			<div class="categorie_prodotti_wrap" data-products-overview-categories>
+				<div class="categorie_prodotti_grid">
+					{categoryCards.map((single) => (
+						<a class="categorie_prodotti_card" href={single.href}>
+							{single.imageSrc && (
+								<div class="categorie_prodotti_media">
+									<img src={single.imageSrc} alt={single.title} loading="lazy" />
+								</div>
+							)}
+							<h2 class="categorie_prodotti_card_title">{single.title}</h2>
+							{single.description && <p class="categorie_prodotti_card_subtitle">{single.description}</p>}
+						</a>
+					))}
+				</div>
+			</div>
+		)}
+	</div>
+</section>
+
+<script is:inline>
+	(() => {
+		const searchForm = document.querySelector('[data-products-overview-search-form]');
+		const searchInput = document.querySelector('[data-products-overview-search]');
+		const resultsWrap = document.querySelector('[data-products-overview-results]');
+		const categoriesWrap = document.querySelector('[data-products-overview-categories]');
+		const clearButton = document.querySelector('[data-products-overview-clear]');
+		const countElement = document.querySelector('[data-products-overview-count]');
+		const emptyElement = document.querySelector('[data-products-overview-empty]');
+		const cards = Array.from(document.querySelectorAll('[data-products-overview-grid] .products_card'));
+		let searchTerm = '';
+		let activeSearchTerm = '';
+
+		const applySearch = () => {
+			let visibleCount = 0;
+
+			cards.forEach((card) => {
+				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
+				const match = !activeSearchTerm || searchable.includes(activeSearchTerm);
+				card.style.display = match ? '' : 'none';
+				if (match) visibleCount += 1;
+			});
+
+			if (resultsWrap instanceof HTMLElement) resultsWrap.hidden = !activeSearchTerm;
+			if (categoriesWrap instanceof HTMLElement) categoriesWrap.hidden = Boolean(activeSearchTerm);
+			if (emptyElement instanceof HTMLElement) emptyElement.style.display = visibleCount > 0 ? 'none' : 'block';
+			if (countElement instanceof HTMLElement) countElement.textContent = `${visibleCount} prodotti`;
+			if (clearButton instanceof HTMLElement) clearButton.style.visibility = activeSearchTerm ? 'visible' : 'hidden';
+		};
+
+		if (searchInput instanceof HTMLInputElement) {
+			searchInput.addEventListener('input', () => {
+				searchTerm = searchInput.value.trim().toLowerCase();
+			});
+		}
+
+		if (searchForm instanceof HTMLFormElement) {
+			searchForm.addEventListener('submit', (event) => {
+				event.preventDefault();
+				activeSearchTerm = searchTerm;
+				applySearch();
+			});
+		}
+
+		if (clearButton instanceof HTMLButtonElement) {
+			clearButton.addEventListener('click', () => {
+				activeSearchTerm = '';
+				searchTerm = '';
+				if (searchInput instanceof HTMLInputElement) searchInput.value = '';
+				applySearch();
+			});
+		}
+
+		applySearch();
+	})();
+</script>
+
+<style>
+	.products_overview {
+		padding: 0 20px 56px;
+	}
+
+	.products_overview_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.products_search {
+		margin-bottom: 28px;
+		display: flex;
+		gap: 10px;
+		align-items: center;
+	}
+
+	.products_search_input {
+		width: 100%;
+		max-width: 520px;
+		height: 52px;
+		border: 1px solid rgba(0, 0, 0, 0.18);
+		border-radius: 999px;
+		padding: 0 20px;
+		font: inherit;
+		font-size: 16px;
+		background: #fff;
+		color: var(--nero);
+	}
+
+	.products_search_input:focus {
+		outline: none;
+		border-color: var(--blu);
+		box-shadow: 0 0 0 3px rgba(255, 64, 0, 0.18);
+	}
+
+	.products_search_button {
+		appearance: none;
+		border: 0;
+		border-radius: 999px;
+		padding: 0 24px;
+		height: 52px;
+		font: inherit;
+		font-weight: 700;
+		background: var(--blu);
+		color: #fff;
+		cursor: pointer;
+		transition: transform 180ms ease, filter 180ms ease;
+	}
+
+	.products_search_button:hover {
+		filter: brightness(1.04);
+		transform: translateY(-1px);
+	}
+
+	.products_overview_results {
+		margin-bottom: 32px;
+	}
+
+	.products_results_head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 14px;
+		margin-bottom: 18px;
+	}
+
+	.products_results_count {
+		margin: 0;
+		font-size: 15px;
+		font-weight: 600;
+		color: rgba(0, 0, 0, 0.78);
+	}
+
+	.products_clear_filters {
+		visibility: hidden;
+		appearance: none;
+		border: 0;
+		background: transparent;
+		color: var(--blu);
+		font: inherit;
+		font-size: 14px;
+		font-weight: 600;
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.categorie_prodotti_grid,
+	.products_grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 20px;
+	}
+
+	.categorie_prodotti_card,
+	.products_card {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		padding: 24px;
+		background: var(--bianco);
+		border: 1px solid rgba(0, 0, 0, 0.09);
+		border-radius: 14px;
+		color: var(--nero);
+		text-decoration: none;
+		transition: transform 180ms ease, box-shadow 180ms ease;
+	}
+
+	.categorie_prodotti_card:hover,
+	.a.products_card:hover,
+	.products_card:hover {
+		transform: translateY(-3px);
+		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+	}
+
+	.categorie_prodotti_media,
+	.products_card_media {
+		overflow: hidden;
+		border-radius: 10px;
+		aspect-ratio: 4 / 3;
+		background: #f8f8f8;
+	}
+
+	.categorie_prodotti_media img,
+	.products_card_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
+	.categorie_prodotti_card_title,
+	.products_card_title {
+		margin: 0;
+		font-size: 24px;
+		line-height: 1.15;
+		text-align: center;
+	}
+
+	.categorie_prodotti_card_subtitle {
+		margin: 0;
+		font-size: 16px;
+		line-height: 1.45;
+		color: rgba(0, 0, 0, 0.75);
+		text-align: center;
+	}
+
+	.products_empty {
+		display: none;
+		margin: 4px 0 0;
+		font-size: 15px;
+		color: rgba(0, 0, 0, 0.68);
+	}
+
+	@media (max-width: 1080px) {
+		.categorie_prodotti_grid,
+		.products_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 760px) {
+		.categorie_prodotti_grid,
+		.products_grid {
+			grid-template-columns: 1fr;
+		}
+
+		.products_results_head,
+		.products_search {
+			flex-direction: column;
+			align-items: stretch;
+		}
+	}
+</style>

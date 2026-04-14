@@ -1,0 +1,175 @@
+---
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+
+interface Brand {
+	id?: number;
+	sort?: number;
+	nome_marchio?: string;
+	logo_marchio?: string | { id?: string | null } | null;
+	url_marchio?: string;
+}
+
+interface Props {
+	titolo?: string;
+}
+
+const { titolo = 'Marchi' } = Astro.props;
+
+function resolveAssetId(value: Brand['logo_marchio']) {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object' && typeof value.id === 'string') return value.id;
+	return '';
+}
+
+function resolveImageSrc(value: Brand['logo_marchio']) {
+	const id = resolveAssetId(value);
+	if (!id) return '';
+	return directusAssetUrl(id, {
+		height: 280,
+		quality: 82,
+		format: 'webp',
+	});
+}
+
+function normalizeHref(value: string | undefined) {
+	if (!value) return '';
+	const trimmed = value.trim();
+	if (!trimmed) return '';
+	if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+	return `https://${trimmed}`;
+}
+
+async function fetchBrands(): Promise<Brand[]> {
+	try {
+		const url = directusItemsUrl('Marchi');
+		url.searchParams.set('fields', 'id,nome_marchio,logo_marchio,url_marchio,sort');
+		url.searchParams.set('sort', 'sort,nome_marchio');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Brand[]) : [];
+	} catch (error) {
+		console.error('Errore caricando i marchi:', error);
+		return [];
+	}
+}
+
+const brands = await fetchBrands();
+---
+
+{brands.length > 0 && (
+	<section class="marchi_block" data-aos="fade-up" data-aos-duration="1200">
+		<div class="marchi_block_inner">
+			{titolo && <h2 class="marchi_block_title">{titolo}</h2>}
+			<div class="marchi_grid">
+				{brands.map((brand) => {
+					const imageSrc = resolveImageSrc(brand.logo_marchio);
+					const href = normalizeHref(brand.url_marchio);
+					const Tag = href ? 'a' : 'div';
+
+					return (
+						<Tag
+							class="marchio_item"
+							href={href || undefined}
+							target={href ? '_blank' : undefined}
+							rel={href ? 'noopener noreferrer' : undefined}
+						>
+							{imageSrc ? (
+								<img src={imageSrc} alt={brand.nome_marchio || 'Marchio'} loading="lazy" />
+							) : (
+								<span class="marchio_fallback">{brand.nome_marchio || 'Marchio'}</span>
+							)}
+						</Tag>
+					);
+				})}
+			</div>
+		</div>
+	</section>
+)}
+
+<style>
+	.marchi_block {
+		padding: 40px 20px;
+	}
+
+	.marchi_block_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.marchi_block_title {
+		margin: 0 0 24px;
+		color: #000;
+		font-size: clamp(28px, 4vw, 42px);
+		border-bottom: 4px solid #ff4000;
+		padding-bottom: 20px;
+	}
+
+	.marchi_grid {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 18px;
+	}
+
+	.marchio_item {
+		height: 100px;
+		background: #fff;
+		border-radius: 16px;
+		padding: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		text-decoration: none;
+		transition: transform 220ms ease, box-shadow 220ms ease;
+		will-change: transform;
+	}
+
+	.marchio_item:hover {
+		transform: scale(1.05);
+		box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+	}
+
+	.marchio_item img {
+		max-width: 100%;
+		max-height: 100%;
+		width: auto;
+		height: auto;
+		object-fit: contain;
+		filter: grayscale(100%);
+		transition: filter 220ms ease;
+	}
+
+	.marchio_item:hover img {
+		filter: grayscale(0%);
+	}
+
+	.marchio_fallback {
+		font-size: 16px;
+		font-weight: 600;
+		color: #1c468c;
+		text-align: center;
+	}
+
+	@media (max-width: 1100px) {
+		.marchi_grid {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 860px) {
+		.marchi_grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 640px) {
+		.marchi_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.marchio_item {
+			height: 100px;
+		}
+	}
+</style>

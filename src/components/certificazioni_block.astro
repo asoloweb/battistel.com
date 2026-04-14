@@ -1,0 +1,175 @@
+---
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+
+interface Certification {
+	id?: number;
+	sort?: number;
+	nome_certificazione?: string;
+	logo_certificazione?: string | { id?: string | null } | null;
+	url_certificazione?: string;
+}
+
+interface Props {
+	titolo?: string;
+}
+
+const { titolo = 'Certificazioni' } = Astro.props;
+
+function resolveAssetId(value: Certification['logo_certificazione']) {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object' && typeof value.id === 'string') return value.id;
+	return '';
+}
+
+function resolveImageSrc(value: Certification['logo_certificazione']) {
+	const id = resolveAssetId(value);
+	if (!id) return '';
+	return directusAssetUrl(id, {
+		height: 280,
+		quality: 82,
+		format: 'webp',
+	});
+}
+
+function normalizeHref(value: string | undefined) {
+	if (!value) return '';
+	const trimmed = value.trim();
+	if (!trimmed) return '';
+	if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+	return `https://${trimmed}`;
+}
+
+async function fetchCertifications(): Promise<Certification[]> {
+	try {
+		const url = directusItemsUrl('Certificazioni');
+		url.searchParams.set('fields', 'id,nome_certificazione,logo_certificazione,url_certificazione,sort');
+		url.searchParams.set('sort', 'sort,nome_certificazione');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Certification[]) : [];
+	} catch (error) {
+		console.error('Errore caricando le certificazioni:', error);
+		return [];
+	}
+}
+
+const certifications = await fetchCertifications();
+---
+
+{certifications.length > 0 && (
+	<section class="certificazioni_block" data-aos="fade-up" data-aos-duration="1200">
+		<div class="certificazioni_block_inner">
+			{titolo && <h2 class="certificazioni_block_title">{titolo}</h2>}
+			<div class="certificazioni_grid">
+				{certifications.map((certification) => {
+					const imageSrc = resolveImageSrc(certification.logo_certificazione);
+					const href = normalizeHref(certification.url_certificazione);
+					const Tag = href ? 'a' : 'div';
+
+					return (
+						<Tag
+							class="certificazione_item"
+							href={href || undefined}
+							target={href ? '_blank' : undefined}
+							rel={href ? 'noopener noreferrer' : undefined}
+						>
+							{imageSrc ? (
+								<img
+									src={imageSrc}
+									alt={certification.nome_certificazione || 'Certificazione'}
+									loading="lazy"
+								/>
+							) : (
+								<span class="certificazione_fallback">
+									{certification.nome_certificazione || 'Certificazione'}
+								</span>
+							)}
+						</Tag>
+					);
+				})}
+			</div>
+		</div>
+	</section>
+)}
+
+<style>
+	.certificazioni_block {
+		padding: 40px 20px;
+	}
+
+	.certificazioni_block_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.certificazioni_block_title {
+		margin: 0 0 24px;
+		color: #000;
+		font-size: clamp(28px, 4vw, 42px);
+		border-bottom: 4px solid #ff4000;
+		padding-bottom: 20px;
+	}
+
+	.certificazioni_grid {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 18px;
+	}
+
+	.certificazione_item {
+		height: 140px;
+		background: #fff;
+		border-radius: 16px;
+		padding: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		text-decoration: none;
+		transition: transform 220ms ease, box-shadow 220ms ease;
+		will-change: transform;
+	}
+
+	.certificazione_item:hover {
+		transform: scale(1.05);
+		box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+	}
+
+	.certificazione_item img {
+		max-width: 100%;
+		max-height: 100%;
+		width: auto;
+		height: auto;
+		object-fit: contain;
+	}
+
+	.certificazione_fallback {
+		font-size: 16px;
+		font-weight: 600;
+		color: #1c468c;
+		text-align: center;
+	}
+
+	@media (max-width: 1100px) {
+		.certificazioni_grid {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 860px) {
+		.certificazioni_grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 640px) {
+		.certificazioni_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.certificazione_item {
+			height: 120px;
+		}
+	}
+</style>

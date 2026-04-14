@@ -1,0 +1,338 @@
+---
+import { directusAssetUrl } from '../lib/directus';
+
+interface Props {
+	item?: string;
+	titolo?: string;
+	sottotitolo?: string;
+	paragrafo?: string;
+	href?: string;
+	label?: string;
+	immagine?: string;
+	immagine_2?: string;
+	inverti?: boolean;
+	background_color?: string;
+}
+
+const { 
+	item, 
+	titolo = '', 
+	sottotitolo = '', 
+	paragrafo = '', 
+	href = '', 
+	label = '', 
+	immagine = '',
+	immagine_2 = '',
+	inverti = false,
+	background_color = ''
+} = Astro.props;
+
+const primaryImage = immagine || immagine_2;
+const secondaryImage = immagine && immagine_2 ? immagine_2 : '';
+
+function resolveImageSrc(value: string) {
+	return directusAssetUrl(value, {
+		width: 1100,
+		height: 900,
+		quality: 74,
+		format: 'webp',
+	});
+}
+---
+
+<div
+	data-aos="fade-up"
+     data-aos-duration="1500"
+	class={`hero_block${inverti ? ' hero_block_inverted' : ''}`}
+	style={background_color ? `background-color: ${background_color};` : undefined}
+>
+	{primaryImage && (
+		<div class="colonna colonna_immagine">
+			<div class="hero_images_stack">
+				<span class="hero_shape hero_shape_orange" aria-hidden="true"></span>
+				<span class="hero_shape hero_shape_blue" aria-hidden="true"></span>
+				<span class="hero_shape hero_shape_orange_secondary" aria-hidden="true"></span>
+				<img
+					class="hero_image hero_image_primary"
+					data-aos="fade-up"
+					data-aos-duration="700"
+					src={resolveImageSrc(primaryImage)}
+					alt={sottotitolo || titolo}
+					loading="eager"
+					fetchpriority="high"
+					decoding="async"
+				/>
+				{secondaryImage && (
+					<img
+						class="hero_image hero_image_secondary"
+						data-aos="fade-up"
+						data-aos-duration="700"
+						data-aos-delay="170"
+						src={resolveImageSrc(secondaryImage)}
+						alt={sottotitolo || titolo}
+						loading="lazy"
+						decoding="async"
+					/>
+				)}
+			</div>
+		</div>
+	)}
+	<div class="colonna colonna_testo">
+		{titolo && <div class="title">{titolo}</div>}
+		{sottotitolo && <h3>{sottotitolo}</h3>}
+		{paragrafo && <div class="hero_text" set:html={paragrafo} />}
+		{label && href && (
+			<a class="MainButton" href={href}>
+				{label}
+			</a>
+		)}
+	</div>
+</div>
+
+<style>
+	.hero_block {
+		color:#fff;
+		margin-bottom: 50px;
+		display: flex;
+		background: #fff;
+		border-radius: 40px;
+		max-width: var(--max-width);
+		margin: auto;
+		margin-bottom:40px;
+	}
+	.colonna {
+		flex: 1;
+	}
+
+	.hero_block_inverted {
+		flex-direction: row-reverse;
+	}
+
+	.colonna_testo {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;	
+		color: #000;
+		padding: 50px;
+		border-radius: 20px;
+	}
+
+	.colonna_immagine {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.hero_images_stack {
+		position: relative;
+		width: min(650px, 100%);
+		height: clamp(360px, 42vw, 590px);
+		margin-inline: auto;
+		overflow: visible;
+	}
+
+	.hero_shape {
+		position: absolute;
+		display: block;
+		border-radius: 999px;
+		pointer-events: none;
+		transform: scale(0.8);
+		opacity: 0;
+		transform-origin: center;
+	}
+
+	.hero_block.aos-animate .hero_shape {
+		animation: shapeScaleIn 700ms ease-out forwards;
+	}
+
+	.hero_block.aos-animate .hero_shape_orange {
+		animation-delay: 40ms;
+	}
+
+	.hero_block.aos-animate .hero_shape_blue {
+		animation-delay: 150ms;
+	}
+
+	.hero_block.aos-animate .hero_shape_orange_secondary {
+		animation-delay: 260ms;
+	}
+
+	.hero_shape_orange {
+		width: 82%;
+		height: 80%;
+		right: 2%;
+		top: 5%;
+		background: #f19b003b;
+		z-index: 0;
+	}
+
+	.hero_shape_blue {
+		width: 84%;
+		height: 81%;
+		left: 5%;
+		top: 7%;
+		background: #1c468c;
+		z-index: 1;
+	}
+
+	.hero_shape_orange_secondary {
+		width: 74%;
+		height: 58%;
+		left: 15%;
+		top: 40%;
+		background: #ef6b0029;
+		z-index: 2;
+	}
+
+	@keyframes shapeScaleIn {
+		from {
+			transform: scale(0.8);
+			opacity: 0;
+		}
+		to {
+			transform: scale(1);
+			opacity: 1;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.hero_shape {
+			transform: scale(1);
+			opacity: 1;
+		}
+
+		.hero_block.aos-animate .hero_shape {
+			animation: none;
+		}
+	}
+
+	.colonna_testo .title {
+		font-size: 42px;
+		font-family: var(--font-body);
+		line-height: 40px;
+		font-weight: bold;
+		border-bottom: 4px solid #ff4000;
+		padding-bottom: 20px;
+	}
+
+	.hero_text {
+		margin: 0 0 30px;
+		line-height: 24px;
+		font-size: 19px;
+	}
+	.hero_image {
+		position: absolute;
+		width: 80%;
+		height: 52%;
+		display: block;
+		object-fit: cover;
+		object-position: center;
+		border-radius: 20px;
+		box-shadow: 0 12px 26px rgba(0, 0, 0, 0.2);
+		transition: transform 280ms ease, z-index 280ms ease, box-shadow 280ms ease;
+	}
+
+	.hero_image_primary {
+		top: 15%;
+		left: 5%;
+		z-index: 6;
+	}
+
+	.hero_image_secondary {
+		right: 0;
+		bottom: 5%;
+		width: 73%;
+		height: 44%;
+		z-index: 4;
+	}
+
+	@media (hover: hover) {
+		.hero_images_stack .hero_image:hover {
+			transform: scale(1.03);
+			box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
+		}
+
+		.hero_images_stack .hero_image_primary:hover {
+			z-index: 8;
+		}
+
+		.hero_images_stack .hero_image_secondary:hover {
+			transform: scale(1.06);
+			z-index: 7;
+			box-shadow: 0 22px 40px rgba(0, 0, 0, 0.26);
+		}
+	}
+
+	.hero_block_inverted .hero_shape_orange {
+		left: 2%;
+		right: auto;
+	}
+
+	.hero_block_inverted .hero_shape_blue {
+		right: 0;
+		left: auto;
+	}
+
+	.hero_block_inverted .hero_shape_orange_secondary {
+		right: 15%;
+		left: auto;
+	}
+
+	.hero_block_inverted .hero_image_primary {
+		right: 0;
+		left: auto;
+	}
+
+	.hero_block_inverted .hero_image_secondary {
+		left: 0;
+		right: auto;
+	}
+
+	@media (max-width: 900px) {
+		.hero_block,
+		.hero_block_inverted {
+			flex-direction: column;
+		}
+
+		.colonna_testo {
+			padding: 28px 22px;
+		}
+
+		.hero_image {
+			width: 84%;
+			height: 52%;
+		}
+
+		.hero_images_stack {
+			margin-left: 0;
+			margin-right: 0;
+			width: 100%;
+			height: clamp(300px, 82vw, 470px);
+		}
+
+		.hero_image_primary {
+			top: 24%;
+		}
+
+		.hero_image_secondary {
+			width: 60%;
+			height: 40%;
+		}
+
+		.hero_shape_orange {
+			width: 90%;
+			height: 82%;
+		}
+
+		.hero_shape_blue {
+			width: 90%;
+			height: 72%;
+		}
+
+		.hero_shape_orange_secondary {
+			width: 80%;
+			height: 60%;
+			left: 10%;
+		}
+	}
+</style>

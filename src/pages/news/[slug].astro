@@ -1,0 +1,169 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
+import { slugifyNewsTitle } from '../../lib/news-slug';
+
+type NewsPage = {
+	id?: number;
+	status?: string;
+	titolo?: string;
+	sottotitolo?: string;
+	editor?: string;
+	immagine_copertina?: string;
+	video?: string;
+	date_created?: string;
+	link?: string;
+	label_link?: string;
+};
+
+function resolveImageSrc(value: string | undefined) {
+	return directusAssetUrl(value, {
+		width: 1600,
+		height: 1000,
+		quality: 76,
+		format: 'webp',
+	});
+}
+
+function formatNewsDate(value: string | undefined) {
+	if (!value) return '';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return '';
+	const formatted = new Intl.DateTimeFormat('it-IT', {
+		day: 'numeric',
+		month: 'long',
+		year: 'numeric',
+	}).format(date);
+	const parts = formatted.split(' ');
+	if (parts.length < 3) return formatted;
+	parts[1] = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+	return parts.join(' ');
+}
+
+export async function getStaticPaths() {
+	const url = directusItemsUrl('News');
+	url.searchParams.set(
+		'fields',
+		'id,status,titolo,sottotitolo,editor,immagine_copertina,video,date_created,link,label_link'
+	);
+	url.searchParams.set('filter[status][_eq]', 'published');
+	const response = await directusFetch(url);
+	const payload = await response.json();
+	const newsItems = Array.isArray(payload?.data) ? (payload.data as NewsPage[]) : [];
+	const usedSlugs = new Set<string>();
+
+	return newsItems
+		.filter((item) => typeof item?.id === 'number')
+		.map((item) => {
+			const baseSlug = slugifyNewsTitle(item.titolo) || String(item.id);
+			let resolvedSlug = baseSlug;
+			if (usedSlugs.has(resolvedSlug)) {
+				resolvedSlug = `${baseSlug}-${item.id}`;
+			}
+			usedSlugs.add(resolvedSlug);
+			return {
+				params: { slug: resolvedSlug },
+				props: { news: item },
+			};
+		});
+}
+
+const { news } = Astro.props as { news: NewsPage };
+const imageSrc = resolveImageSrc(news?.immagine_copertina);
+const videoSrc = directusAssetUrl(news?.video);
+const newsDate = formatNewsDate(news?.date_created);
+---
+
+<BaseLayout title={news?.titolo || 'News'}>
+	<article class="news_single">
+		<div class="news_single_inner">
+			{newsDate && <p class="news_single_date">{newsDate}</p>}
+			{news?.titolo && <h1 class="news_single_title">{news.titolo}</h1>}
+			{news?.sottotitolo && <p class="news_single_subtitle">{news.sottotitolo}</p>}
+			{videoSrc ? (
+				<div class="news_single_media">
+					<video src={videoSrc} controls preload="metadata"></video>
+				</div>
+			) : (
+				imageSrc && (
+				<div class="news_single_media">
+					<img src={imageSrc} alt={news?.titolo || ''} loading="eager" />
+				</div>
+				)
+			)}
+			{news?.editor && <div class="news_single_editor" set:html={news.editor} />}
+			{news?.link && news?.label_link && (
+				<a class="MainButton news_single_link" href={news.link}>
+					{news.label_link}
+				</a>
+			)}
+			{news?.link && !news?.label_link && (
+				<a class="MainButton news_single_link" href={news.link}>
+					Apri link
+				</a>
+			)}
+		</div>
+	</article>
+</BaseLayout>
+
+<style>
+	.news_single {
+		padding: 40px 20px 60px;
+		padding-top:165px;
+	}
+
+	.news_single_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.news_single_date {
+		margin: 0 0 10px;
+		font-size: 14px;
+		font-weight: 600;
+		opacity: 0.8;
+	}
+
+	.news_single_title {
+		margin: 0;
+		font-size: clamp(34px, 5vw, 54px);
+		line-height: 1.05;
+	}
+
+	.news_single_subtitle {
+		margin: 14px 0 24px;
+		font-size: 21px;
+		line-height: 1.35;
+		max-width: 900px;
+	}
+
+	.news_single_media {
+		margin: 0 0 30px;
+		border-radius: 22px;
+		overflow: hidden;
+	}
+
+	.news_single_media img {
+		width: 100%;
+		height: auto;
+		display: block;
+	}
+
+	.news_single_media video {
+		width: 100%;
+		height: auto;
+		max-height: 700px;
+		display: block;
+		object-fit: contain;
+	}
+
+	.news_single_editor {
+		font-size: 18px;
+		line-height: 1.65;
+	}
+
+	.news_single_link {
+		margin-top: 30px;
+		display: inline-flex;
+	}
+</style>

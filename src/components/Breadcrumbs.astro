@@ -1,0 +1,111 @@
+---
+type BreadcrumbItem = {
+	name: string;
+	href?: string;
+};
+
+interface Props {
+	items: BreadcrumbItem[];
+	backHref?: string;
+	backLabel?: string;
+}
+
+const { items = [], backHref = '', backLabel = '' } = Astro.props as Props;
+const siteUrl = (import.meta.env.PUBLIC_SITE_URL || 'https://battistel.com').replace(/\/+$/, '');
+
+const jsonLd = {
+	'@context': 'https://schema.org',
+	'@type': 'BreadcrumbList',
+	itemListElement: items.map((item, index) => ({
+		'@type': 'ListItem',
+		position: index + 1,
+		name: item.name,
+		item: item.href ? `${siteUrl}${item.href}` : `${siteUrl}${Astro.url.pathname}`,
+	})),
+};
+---
+
+{items.length > 0 && (
+	<>
+		<nav class="breadcrumbs" aria-label="Breadcrumb">
+			{backHref && backLabel && (
+				<a class="breadcrumbs_back" href={backHref}>{backLabel}</a>
+			)}
+			<ol class="breadcrumbs_list">
+				{items.map((item, index) => {
+					const isLast = index === items.length - 1;
+					return (
+						<li class="breadcrumbs_item">
+							{item.href && !isLast ? <a href={item.href}>{item.name}</a> : <span aria-current={isLast ? 'page' : undefined}>{item.name}</span>}
+						</li>
+					);
+				})}
+			</ol>
+		</nav>
+		<script type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
+	</>
+)}
+
+<style>
+	.breadcrumbs {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-bottom: 24px;
+	}
+
+	.breadcrumbs_back {
+		align-self: flex-start;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--blu);
+		font-size: 14px;
+		font-weight: 700;
+		text-decoration: none;
+	}
+
+	.breadcrumbs_back::before {
+		content: '<';
+		font-size: 14px;
+		line-height: 1;
+	}
+
+	.breadcrumbs_list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		color: rgba(0, 0, 0, 0.7);
+		font-size: 14px;
+	}
+
+	.breadcrumbs_item {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.breadcrumbs_item:not(:last-child)::after {
+		content: '/';
+		color: rgba(0, 0, 0, 0.35);
+	}
+
+	.breadcrumbs_item a {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.breadcrumbs_item span[aria-current='page'] {
+		font-weight: 700;
+		color: var(--nero);
+	}
+
+	@media (max-width: 760px) {
+		.breadcrumbs {
+			margin-bottom: 20px;
+		}
+	}
+</style>

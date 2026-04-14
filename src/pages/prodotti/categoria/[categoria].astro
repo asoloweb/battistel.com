@@ -1,0 +1,108 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import PageContent from '../../../components/PageContent.astro';
+import ProdottiCategoryBlock from '../../../components/prodotti_category_block.astro';
+import { directusFetch, directusItemsUrl } from '../../../lib/directus';
+import { slugifyLabel } from '../../../lib/slug';
+
+type Category = {
+	id?: number;
+	status?: string;
+	titolo_categoria?: string;
+	descrizione_categoria?: string;
+};
+
+type Page = {
+	status?: string;
+	slug?: string;
+	title?: string;
+	Titolo?: string;
+	description?: string;
+	seo_title?: string;
+	seo_desc?: string;
+	hide_page_header?: boolean;
+	page_header?: string;
+	editor?: unknown[];
+};
+
+async function fetchProdottiPage(): Promise<Page | null> {
+	try {
+		const url = directusItemsUrl('pages');
+		url.searchParams.set(
+			'fields',
+			'*,editor.collection,editor.item.*,editor.item.slider.*,editor.item.slider.slides.item.*,editor.item.card.single_card_id.*,editor.item.card.single_card_id.link.id,editor.item.card.single_card_id.link.slug,editor.item.card.single_card_id.link.title'
+		);
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('filter[slug][_eq]', 'prodotti');
+		url.searchParams.set('limit', '1');
+		const response = await directusFetch(url);
+		if (!response.ok) return null;
+		const payload = await response.json();
+		const pages = Array.isArray(payload?.data) ? (payload.data as Page[]) : [];
+		return pages[0] ?? null;
+	} catch (error) {
+		console.error('Errore caricando la pagina prodotti:', error);
+		return null;
+	}
+}
+
+export async function getStaticPaths() {
+	const url = directusItemsUrl('Categorie');
+	url.searchParams.set('fields', 'id,titolo_categoria,descrizione_categoria,status');
+	url.searchParams.set('filter[status][_eq]', 'published');
+	url.searchParams.set('sort', 'sort,titolo_categoria');
+
+	const response = await directusFetch(url);
+	const payload = await response.json();
+	const categories = Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
+	const used = new Set<string>();
+
+	return categories
+		.map((category) => {
+			const slug = slugifyLabel(category.titolo_categoria) || String(category.id || '').trim();
+			if (!slug || used.has(slug)) return null;
+			used.add(slug);
+			return {
+				params: { categoria: slug },
+				props: {
+					categoriaSlug: slug,
+					categoriaTitle: category.titolo_categoria || '',
+					categoriaDescription: category.descrizione_categoria || '',
+				},
+			};
+		})
+		.filter((entry): entry is {
+			params: { categoria: string };
+			props: { categoriaSlug: string; categoriaTitle: string; categoriaDescription: string };
+		} => Boolean(entry));
+}
+
+const {
+	categoriaSlug = '',
+	categoriaTitle = '',
+	categoriaDescription = '',
+} = Astro.props as { categoriaSlug?: string; categoriaTitle?: string; categoriaDescription?: string };
+const page = await fetchProdottiPage();
+const basePageTitle = page?.title || page?.Titolo || 'Prodotti';
+const pageTitle = categoriaTitle || basePageTitle;
+const resolvedSeoTitle = categoriaTitle || page?.seo_title;
+const resolvedSeoDescription = categoriaDescription || page?.seo_desc;
+const pageForContent = page
+	? {
+		...page,
+		title: categoriaTitle || page.title || page.Titolo || basePageTitle,
+		Titolo: categoriaTitle || page.Titolo || page.title || basePageTitle,
+		description: categoriaDescription || page.description || '',
+	}
+	: null;
+---
+
+<BaseLayout
+	title={pageTitle}
+	seoTitle={resolvedSeoTitle}
+	seoDescription={resolvedSeoDescription}
+>
+	{pageForContent && <PageContent page={pageForContent as any} showContent={false} />}
+	<ProdottiCategoryBlock titolo="Prodotti" filterCategorySlug={categoriaSlug} selectedCategoryLabel={categoriaTitle || 'Categoria'} />
+	{pageForContent && <PageContent page={pageForContent as any} showHeader={false} showContent={false} />}
+</BaseLayout>

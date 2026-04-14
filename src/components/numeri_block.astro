@@ -1,0 +1,270 @@
+---
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+
+interface NumeroItem {
+	id?: number;
+	sort?: number;
+	immagine?: string | { id?: string | null } | null;
+	testo?: string;
+	descrizione?: string;
+}
+
+interface Props {
+	titolo?: string;
+}
+
+const { titolo = 'Numeri' } = Astro.props;
+
+function resolveAssetId(value: NumeroItem['immagine']) {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object' && typeof value.id === 'string') return value.id;
+	return '';
+}
+
+function resolveImageSrc(value: NumeroItem['immagine']) {
+	const id = resolveAssetId(value);
+	if (!id) return '';
+	return directusAssetUrl(id, {
+		width: 220,
+		height: 220,
+		quality: 82,
+		format: 'webp',
+	});
+}
+
+async function fetchNumeri(): Promise<NumeroItem[]> {
+	try {
+		const url = directusItemsUrl('numeri');
+		url.searchParams.set('fields', 'id,sort,immagine,testo,descrizione');
+		url.searchParams.set('sort', 'sort,testo');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as NumeroItem[]) : [];
+	} catch (error) {
+		console.error('Errore caricando i numeri:', error);
+		return [];
+	}
+}
+
+const numeri = await fetchNumeri();
+---
+
+{numeri.length > 0 && (
+	<section class="numeri_block" data-numeri-block>
+		<div class="numeri_block_inner">
+			{titolo && <h2 class="numeri_block_title">{titolo}</h2>}
+			<div class="numeri_grid">
+				{numeri.map((numero, index) => {
+					const imageSrc = resolveImageSrc(numero.immagine);
+					const label = numero.testo || '';
+
+					return (
+						<article class="numero_item" style={`--item-index:${index};`}>
+							{imageSrc && <img class="numero_item_image" src={imageSrc} alt={label} loading="lazy" />}
+							{label && (
+								<h3 class="numero_item_title numero_counter" data-counter-source={label}>
+									{label}
+								</h3>
+							)}
+							{numero.descrizione && <p class="numero_item_description">{numero.descrizione}</p>}
+						</article>
+					);
+				})}
+			</div>
+		</div>
+	</section>
+)}
+
+<script>
+	const htmlElement = document.documentElement;
+
+	if (!htmlElement.hasAttribute('data-numeri-block-init')) {
+		htmlElement.setAttribute('data-numeri-block-init', 'true');
+
+		const blocks = document.querySelectorAll<HTMLElement>('[data-numeri-block]');
+
+		if (blocks.length > 0) {
+			const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+			const animateCounter = (element: HTMLElement) => {
+			const source = element.getAttribute('data-counter-source') || element.textContent || '';
+			const value = source.trim();
+			const match = value.match(/-?\d+(?:[.,]\d+)?/);
+
+			if (!match || match.index === undefined) {
+				element.textContent = value;
+				return;
+			}
+
+			const numberText = match[0];
+			const prefix = value.slice(0, match.index);
+			const suffix = value.slice(match.index + numberText.length);
+			const normalized = numberText.replace(',', '.');
+			const target = Number.parseFloat(normalized);
+
+			if (!Number.isFinite(target)) {
+				element.textContent = value;
+				return;
+			}
+
+			const decimalPart = normalized.includes('.') ? normalized.split('.')[1] : '';
+			const decimals = decimalPart ? decimalPart.length : 0;
+
+			if (prefersReducedMotion) {
+				const finalValue = target.toLocaleString('it-IT', {
+					minimumFractionDigits: decimals,
+					maximumFractionDigits: decimals,
+				});
+				element.textContent = `${prefix}${finalValue}${suffix}`;
+				return;
+			}
+
+			const duration = 1200;
+			const start = performance.now();
+
+			const step = (now: number) => {
+				const progress = Math.min((now - start) / duration, 1);
+				const eased = 1 - Math.pow(1 - progress, 3);
+				const current = target * eased;
+				const formatted = current.toLocaleString('it-IT', {
+					minimumFractionDigits: 0,
+					maximumFractionDigits: decimals,
+				});
+				element.textContent = `${prefix}${formatted}${suffix}`;
+
+				if (progress < 1) {
+					window.requestAnimationFrame(step);
+					return;
+				}
+
+				const finalValue = target.toLocaleString('it-IT', {
+					minimumFractionDigits: decimals,
+					maximumFractionDigits: decimals,
+				});
+				element.textContent = `${prefix}${finalValue}${suffix}`;
+			};
+
+			window.requestAnimationFrame(step);
+		};
+
+			const observer = new IntersectionObserver(
+				(entries) => {
+					entries.forEach((entry) => {
+						if (!entry.isIntersecting) return;
+						const block = entry.target as HTMLElement;
+						block.classList.add('is-visible');
+						const counters = Array.from(block.querySelectorAll<HTMLElement>('.numero_counter'));
+
+						counters.forEach((counter, index) => {
+							window.setTimeout(() => {
+								animateCounter(counter);
+							}, index * 300);
+						});
+
+						observer.unobserve(block);
+					});
+				},
+				{ threshold: 0.35 }
+			);
+
+			blocks.forEach((block) => {
+				block.classList.add('is-ready');
+				observer.observe(block);
+			});
+		}
+	}
+</script>
+
+<style>
+	.numeri_block {
+		padding: 40px 20px;
+	}
+
+	.numeri_block_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.numeri_block_title {
+		margin: 0 0 24px;
+		color: #000;
+		font-size: clamp(28px, 4vw, 42px);
+		border-bottom: 4px solid #ff4000;
+		padding-bottom: 20px;
+	}
+
+	.numeri_grid {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 20px;
+	}
+
+	.numero_item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 10px;
+		text-align: center;
+		background: #fff;
+		border-radius: 16px;
+		padding: 28px 18px;
+		opacity: 1;
+		transform: translateY(0) scale(1);
+ 	}
+
+	.numeri_block.is-ready .numero_item {
+		opacity: 0;
+		transform: translateY(14px) scale(0.98);
+	}
+
+	.numeri_block.is-visible .numero_item {
+		animation: numeroFadeIn 650ms ease-out forwards;
+		animation-delay: calc(var(--item-index) * 300ms);
+	}
+
+	.numero_item_image {
+		width: 68px;
+		height: 68px;
+		object-fit: contain;
+	}
+
+	.numero_item_title {
+		margin: 0;
+		font-size: clamp(32px, 3.2vw, 30px);
+		line-height: 1.05;
+		font-weight: 700;
+		color: #000;
+	}
+
+	.numero_item_description {
+		margin: 0;
+		font-size: 16px;
+		line-height: 1.45;
+		color: rgba(0, 0, 0, 0.75);
+	}
+
+	@keyframes numeroFadeIn {
+		from {
+			opacity: 0;
+			transform: translateY(14px) scale(0.98);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
+	}
+
+	@media (max-width: 1024px) {
+		.numeri_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 640px) {
+		.numeri_grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

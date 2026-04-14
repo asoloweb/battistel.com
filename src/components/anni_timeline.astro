@@ -1,0 +1,374 @@
+---
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+
+interface TimelineItem {
+	id?: number;
+	anno?: number;
+	Titolo?: string;
+	descrizione?: string;
+	immagine?: string | { id?: string | null } | null;
+}
+
+function resolveAssetId(value: TimelineItem['immagine']) {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object' && typeof value.id === 'string') return value.id;
+	return '';
+}
+
+function resolveImageSrc(value: TimelineItem['immagine']) {
+	const id = resolveAssetId(value);
+	if (!id) return '';
+	return directusAssetUrl(id, {
+		width: 900,
+		quality: 80,
+		format: 'webp',
+	});
+}
+
+async function fetchTimelineItems(): Promise<TimelineItem[]> {
+	try {
+		const url = directusItemsUrl('anni');
+		url.searchParams.set('fields', 'id,anno,Titolo,descrizione,immagine');
+		url.searchParams.set('sort', 'anno');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as TimelineItem[]) : [];
+	} catch (error) {
+		console.error('Errore caricando la timeline anni:', error);
+		return [];
+	}
+}
+
+const items = await fetchTimelineItems();
+---
+
+{items.length > 0 && (
+	<section class="anni_timeline" aria-label="Timeline aziendale" data-anni-timeline>
+		<div class="anni_timeline_inner">
+			<h2 class="anni_timeline_title">Timeline</h2>
+			<div class="anni_timeline_list">
+				{items.map((item, index) => {
+					const imageSrc = resolveImageSrc(item.immagine);
+					const isRight = index % 2 === 0;
+					const sideClass = isRight ? 'is-right' : 'is-left';
+					const card = (
+						<div class={`anni_timeline_card ${isRight ? 'card-right' : 'card-left'}`}>
+							{item.Titolo && <h3>{item.Titolo}</h3>}
+							{imageSrc && <img src={imageSrc} alt={item.Titolo || String(item.anno || '')} loading="lazy" />}
+							{item.descrizione && <p>{item.descrizione}</p>}
+						</div>
+					);
+					return (
+						<article class={`anni_timeline_item ${sideClass}`} data-aos="fade-up" data-aos-duration="900">
+							<div class="anni_timeline_side anni_timeline_side_left">
+								{isRight ? (
+									<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
+										{item.anno}
+									</div>
+								) : (
+									card
+								)}
+							</div>
+							<div class="anni_timeline_center" aria-hidden="true">
+								<span class="anni_timeline_dot"></span>
+							</div>
+							<div class="anni_timeline_side anni_timeline_side_right">
+								{isRight ? (
+									card
+								) : (
+									<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
+										{item.anno}
+									</div>
+								)}
+							</div>
+						</article>
+					);
+				})}
+			</div>
+		</div>
+	</section>
+)}
+
+<script>
+	const htmlElement = document.documentElement;
+
+	if (!htmlElement.hasAttribute('data-anni-timeline-init')) {
+		htmlElement.setAttribute('data-anni-timeline-init', 'true');
+
+		const counters = document.querySelectorAll<HTMLElement>('[data-anni-timeline] .anni_year_counter');
+
+		if (counters.length > 0) {
+			const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+			const animateCounter = (element: HTMLElement) => {
+				const source = element.getAttribute('data-counter-source') || element.textContent || '';
+				const value = source.trim();
+				const target = Number.parseInt(value, 10);
+
+				if (!Number.isFinite(target)) {
+					element.textContent = value;
+					return;
+				}
+
+				if (prefersReducedMotion) {
+					element.textContent = target.toLocaleString('it-IT');
+					return;
+				}
+
+				const duration = 1200;
+				const start = performance.now();
+
+				const step = (now: number) => {
+					const progress = Math.min((now - start) / duration, 1);
+					const eased = 1 - Math.pow(1 - progress, 3);
+					const current = Math.round(target * eased);
+					element.textContent = current.toLocaleString('it-IT');
+
+					if (progress < 1) {
+						window.requestAnimationFrame(step);
+					}
+				};
+
+				window.requestAnimationFrame(step);
+			};
+
+			const observer = new IntersectionObserver(
+				(entries) => {
+					entries.forEach((entry) => {
+						if (!entry.isIntersecting) return;
+						const counter = entry.target as HTMLElement;
+						if (!counter.hasAttribute('data-counter-animated')) {
+							counter.setAttribute('data-counter-animated', 'true');
+							animateCounter(counter);
+						}
+						observer.unobserve(counter);
+					});
+				},
+				{ threshold: 0.12 }
+			);
+
+			counters.forEach((counter) => {
+				counter.textContent = '0';
+				observer.observe(counter);
+			});
+		}
+	}
+</script>
+
+<style>
+	.anni_timeline {
+		padding: 40px 20px;
+	}
+
+	.anni_timeline_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+		background: #fff;
+		border-radius: 40px;
+		padding: 34px 26px;
+	}
+
+	.anni_timeline_title {
+		margin: 0 0 24px;
+		color: #000;
+		font-size: clamp(28px, 4vw, 42px);
+		line-height: 1.1;
+		border-bottom: 4px solid #ff4000;
+		padding-bottom: 20px;
+	}
+
+	.anni_timeline_list {
+		position: relative;
+		display: grid;
+		gap: 34px;
+	}
+
+	.anni_timeline_list::before {
+		content: '';
+		position: absolute;
+		top: 8px;
+		bottom: 8px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 4px;
+		background: #ff4000;
+	}
+
+	.anni_timeline_item {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+		align-items: start;
+		width: 100%;
+		position: relative;
+	}
+
+	.anni_timeline_side {
+		display: flex;
+		align-items: flex-start;
+	}
+
+	.anni_timeline_side_left {
+		justify-content: flex-end;
+		padding-right: 14px;
+	}
+
+	.anni_timeline_side_right {
+		justify-content: flex-start;
+		padding-left: 14px;
+}
+
+	.anni_timeline_center {
+		position: relative;
+		height: 100%;
+	}
+
+	.anni_timeline_dot {
+		position: absolute;
+		top: 9px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 34px;
+		height: 34px;
+		border-radius: 50%;
+		background: #ff4000;
+		border: 3px solid #fff;
+		box-shadow: 0 0 0 2px #ff4000;
+	}
+
+	.anni_timeline_dot::after {
+		content: '';
+		position: absolute;
+		inset: 10px;
+		border-radius: 50%;
+		background: #fff;
+	}
+
+	.anni_timeline_year {
+		font-size: clamp(40px, 3.7vw, 56px);
+		font-weight: 700;
+		line-height: 1;
+		color: #1f2126;
+		margin: 0;
+	}
+
+	.anni_timeline_card {
+		max-width: 400px;
+		width: 100%;
+		background: #f6f6f6;
+		border-radius: 10px;
+		padding: 14px;
+		border: 1px solid rgba(0, 0, 0, 0.08);
+		box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+		display: grid;
+		gap: 12px;
+		position: relative;
+	}
+
+	.anni_timeline_card.card-right {
+		border-left: 4px solid #ff4000;
+	}
+
+	.anni_timeline_card.card-right::before {
+		content: '';
+		position: absolute;
+		left: -13px;
+		top: 18px;
+		width: 0;
+		height: 0;
+		border-top: 10px solid transparent;
+		border-bottom: 10px solid transparent;
+		border-right: 10px solid #ff4000;
+	}
+
+	.anni_timeline_card.card-left {
+		border-right: 4px solid #ff4000;
+	}
+
+	.anni_timeline_card.card-left::before {
+		content: '';
+		position: absolute;
+		right: -13px;
+		top: 18px;
+		width: 0;
+		height: 0;
+		border-top: 10px solid transparent;
+		border-bottom: 10px solid transparent;
+		border-left: 10px solid #ff4000;
+	}
+
+	.anni_timeline_card h3 {
+		margin: 0;
+		font-size: 25px;
+		line-height: 1.12;
+	}
+
+	.anni_timeline_card p {
+		margin: 0;
+		font-size: 17px;
+		line-height: 1.45;
+		color: rgba(0, 0, 0, 0.78);
+	}
+
+	.anni_timeline_card img {
+		width: 100%;
+		height: auto;
+		border-radius: 6px;
+		object-fit: cover;
+	}
+
+	@media (max-width: 900px) {
+		.anni_timeline_list::before {
+			left: 20px;
+			transform: none;
+		}
+
+		.anni_timeline_item {
+			grid-template-columns: 44px minmax(0, 1fr);
+			gap: 0;
+		}
+
+		.anni_timeline_side_left {
+			grid-column: 2;
+			padding-right: 0;
+			justify-content: flex-start;
+		}
+
+		.anni_timeline_side_right {
+			display: none;
+		}
+
+		.anni_timeline_center {
+			grid-column: 1;
+		}
+
+		.anni_timeline_year {
+			font-size: 38px;
+			margin-bottom: 10px;
+		}
+
+		.anni_timeline_dot {
+			left: 20px;
+			transform: none;
+		}
+
+		.anni_timeline_card {
+			max-width: none;
+		}
+
+		.anni_timeline_card.card-left,
+		.anni_timeline_card.card-right {
+			border-left: 4px solid #ff4000;
+			border-right: 0;
+		}
+
+		.anni_timeline_card.card-left::before,
+		.anni_timeline_card.card-right::before {
+			left: -13px;
+			right: auto;
+			border-left: 0;
+			border-right: 10px solid #ff4000;
+		}
+	}
+</style>

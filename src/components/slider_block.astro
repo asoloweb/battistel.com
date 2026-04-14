@@ -1,0 +1,305 @@
+---
+import { directusAssetUrl } from '../lib/directus';
+
+interface SlideItem {
+	titolo?: string;
+	sottotitolo?: string;
+	label?: string;
+	href?: string;
+	immagine?: string;
+	video?: string;
+}
+
+interface Props {
+	slides?: SlideItem[];
+	titolo?: string;
+	sottotitolo?: string;
+	label?: string;
+	href?: string;
+	autoplay?: boolean;
+	autoplayDelay?: number;
+}
+
+const {
+	slides = [],
+	titolo = '',
+	sottotitolo = '',
+	label = '',
+	href = '',
+	autoplay = false,
+	autoplayDelay = 3000,
+} = Astro.props;
+
+const resolvedSlides =
+	slides.length > 0
+		? slides
+		: [
+				{
+					titolo,
+					sottotitolo,
+					label,
+					href,
+				},
+		  ];
+
+const hasMultipleSlides = resolvedSlides.length > 1;
+
+const sliderId = `slider-${Math.random().toString(36).slice(2)}`;
+
+function resolveImageSrc(value: string | undefined) {
+	return directusAssetUrl(value, {
+		width: 1920,
+		height: 1080,
+		quality: 72,
+		format: 'webp',
+	});
+}
+
+function resolveVideoSrc(value: string | undefined) {
+	return directusAssetUrl(value);
+}
+---
+
+<div
+	class="slider_block swiper"
+	id={sliderId}
+	data-swiper-autoplay={autoplay && hasMultipleSlides ? 'true' : undefined}
+	data-swiper-autoplay-delay={autoplay && hasMultipleSlides ? String(autoplayDelay) : undefined}
+>
+	<div class="swiper-wrapper">
+		{resolvedSlides.map((slide, index) => (
+			<div class="swiper-slide single_slide">
+			{slide.video ? (
+				<video
+					class="single_slide_bg_video"
+					src={resolveVideoSrc(slide.video)}
+					autoplay
+					muted
+					loop
+					playsinline
+					preload={index === 0 ? 'auto' : 'metadata'}
+					poster={slide.immagine ? resolveImageSrc(slide.immagine) : undefined}
+					aria-hidden="true"
+				></video>
+			) : (
+				slide.immagine && (
+					<img
+						class="single_slide_bg"
+						src={resolveImageSrc(slide.immagine)}
+						alt={slide.titolo || ''}
+						loading={index === 0 ? 'eager' : 'lazy'}
+						fetchpriority={index === 0 ? 'high' : 'auto'}
+						decoding="async"
+					/>
+				)
+			)}
+			<div class="single_slide_overlay" aria-hidden="true"></div>
+			<div class="swiper-slide-container">
+				{slide.titolo && <h1>{slide.titolo}</h1>}
+				{slide.sottotitolo && <h2>{slide.sottotitolo}</h2>}
+				{slide.label && slide.href && (
+					<button class="slider_button MainButton" type="button" data-href={slide.href}>
+						{slide.label}
+					</button>
+				)}
+				{(slide.immagine || slide.video) && (
+					<span class="slide_image_sr" aria-hidden="true"></span>
+				)}
+			</div>
+			</div>
+		))}
+	</div>
+	{hasMultipleSlides && <div class="swiper-pagination"></div>}
+	{hasMultipleSlides && <div class="swiper-button-prev"></div>}
+	{hasMultipleSlides && <div class="swiper-button-next"></div>}
+</div>
+
+
+<style>
+		.title_block {
+			margin: 32px 0 16px;
+			border-left: 6px solid var(--oro);
+			padding-left: 14px;
+		}
+
+		.title_block h1 {
+		margin: 0;
+		color: var(--blu);
+		}
+
+		.slider_block {
+		margin: 0;
+		display: grid;
+		gap: 0;
+		width: 100vw;
+		max-width: 100vw;
+		margin-left: calc(50% - 50vw);
+		margin-right: calc(50% - 50vw);
+		height: calc(80vh - 120px);
+		height: calc(90vh - 120px);
+		}
+
+		.slider_block .single_slide {
+		min-height: 220px;
+		padding: 24px;
+		background-size: cover;
+		background-position: center;
+		color: var(--bianco);
+		position: relative;
+		overflow: hidden;
+		}
+
+		.single_slide h1 {
+		font-family: "Roboto", sans-serif;
+		font-size: 96px;
+		font-weight: 600;
+		line-height: 84px;
+		color: #ffffff;
+		text-shadow: 12px 6px 15px #000;
+		max-width: min(1100px, 92vw);
+		margin: 0 auto;
+		}
+
+		.single_slide h2 {
+		font-family: "Roboto", sans-serif;
+		font-size: clamp(24px, 2.4vw, 36px);
+		font-weight: 500;
+		line-height: 1.2;
+		max-width: min(980px, 88vw);
+		margin: 18px auto 0;
+		}
+
+		.slider_block .single_slide > .swiper-slide-container {
+			position: relative;
+			z-index: 2;
+		}
+
+		.slider_block .single_slide > .single_slide_bg {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			z-index: 0;
+		}
+
+		.slider_block .single_slide > .single_slide_bg_video {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			z-index: 0;
+			pointer-events: none;
+		}
+
+		.slider_block .single_slide > .single_slide_overlay {
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(180deg, rgb(28 45 135) 0%, rgba(0, 0, 0, 0.42) 50%, rgb(2 7 37) 100%);
+			z-index: 1;
+		}
+
+		.swiper-slide-container {
+			margin: auto;
+			width: min(var(--SiteWidth), 100%);
+			max-width: 100%;
+			text-align: center;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 16px;
+		}
+
+	.single_slide {
+		padding: 20px;
+		text-align: center;
+		background-size: cover;
+		background-position: center;
+		min-height: 240px;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 16px;
+	}
+
+	.slider_button.MainButton {
+		font-family: "Roboto", sans-serif;
+		font-size: clamp(18px, 1.5vw, 24px);
+		padding: 20px 38px;
+		border-radius: 999px;
+	}
+
+	.slider_button.MainButton:hover {
+		transform: scale(1.04) !important;
+	}
+
+	.single_slide .swiper-slide-container h1,
+	.single_slide .swiper-slide-container h2,
+	.single_slide .swiper-slide-container .slider_button {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+
+	:global(.slider_block .swiper-slide-active .swiper-slide-container h1) {
+		animation: slideFadeIn 0.6s ease-out forwards;
+	}
+
+	:global(.slider_block .swiper-slide-active .swiper-slide-container h2) {
+		animation: slideFadeIn 0.6s ease-out 0.3s forwards;
+	}
+
+	:global(.slider_block .swiper-slide-active .swiper-slide-container .slider_button) {
+		animation: slideFadeIn 0.6s ease-out 0.6s forwards;
+	}
+
+	@keyframes slideFadeIn {
+		from {
+			opacity: 0;
+			transform: translateY(20px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+	.slide_image_sr {
+		display: none;
+	}
+	:global(.swiper-button-prev),
+	:global(.swiper-button-next) {
+		color: #111;
+	}
+
+	@media (max-width: 640px) {
+		.single_slide {
+			padding: 16px;
+		}
+
+		.swiper-slide-container {
+			width: 100%;
+		}
+
+		.single_slide h1 {
+			font-size: clamp(40px, 10vw, 64px);
+			line-height: 1.05;
+			max-width: 100%;
+			overflow-wrap: anywhere;
+			hyphens: none;
+		}
+
+		.single_slide h2 {
+			font-size: clamp(22px, 6vw, 32px);
+			line-height: 1.25;
+			max-width: 100%;
+			overflow-wrap: anywhere;
+			hyphens: none;
+		}
+
+		.slider_button.MainButton {
+			font-size: 18px;
+			padding: 16px 30px;
+		}
+	}
+</style>

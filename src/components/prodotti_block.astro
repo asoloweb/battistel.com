@@ -1,0 +1,1060 @@
+---
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+import { buildProductSlugMap, getProductTitle } from '../lib/products';
+
+interface Category {
+	id?: number | string;
+	status?: string;
+	sort?: number;
+	titolo_categoria?: string;
+	descrizione_categoria?: string;
+	parent_categoria?: unknown;
+	parent?: unknown;
+	parent_id?: unknown;
+	categoria_padre?: unknown;
+	categoria_padre_id?: unknown;
+	[key: string]: unknown;
+}
+
+interface CategoryRelation {
+	Categorie_id?: Category | number | null;
+}
+
+interface Product {
+	id?: number;
+	status?: string;
+	sort?: number;
+	codice_prodotto?: string;
+	titolo?: string;
+	descrizione_breve?: string;
+	descrizione_estesa?: string;
+	foto_prodotto?: string;
+	Categoria?: CategoryRelation[];
+	Tag?: { Tags_id?: { titolo_tag?: string } | number | null }[];
+	[key: string]: unknown;
+}
+
+interface Props {
+	titolo?: string;
+}
+
+type CategoryTreeNode = {
+	token: string;
+	label: string;
+	parentToken: string | null;
+	depth: number;
+};
+
+type CategoryTreeBranch = {
+	token: string;
+	label: string;
+	depth: number;
+	children: CategoryTreeBranch[];
+};
+
+const { titolo = '' } = Astro.props;
+
+async function fetchCategories(): Promise<Category[]> {
+	try {
+		const url = directusItemsUrl('Categorie');
+		url.searchParams.set('fields', 'id,titolo_categoria,descrizione_categoria,parent_categoria,status,sort');
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('sort', 'sort,titolo_categoria');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
+	} catch (error) {
+		console.error('Errore caricando le categorie prodotti:', error);
+		return [];
+	}
+}
+
+async function fetchProducts(): Promise<Product[]> {
+	try {
+		const url = directusItemsUrl('Prodotti');
+		url.searchParams.set(
+			'fields',
+			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag'
+		);
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('limit', '-1');
+		url.searchParams.set('sort', 'sort,codice_prodotto');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Product[]) : [];
+	} catch (error) {
+		console.error('Errore caricando i prodotti:', error);
+		return [];
+	}
+}
+
+function resolveImageSrc(value: string | undefined) {
+	return directusAssetUrl(value, {
+		width: 760,
+		quality: 72,
+		format: 'webp',
+	});
+}
+
+function normalizeFilterToken(value: string) {
+	return (value || '').trim().toLowerCase();
+}
+
+function resolveToken(value: unknown): string {
+	if (typeof value === 'number') return String(value);
+	if (typeof value === 'string') return value.trim();
+	if (typeof value === 'object' && value) {
+		const nestedId = (value as { id?: unknown }).id;
+		if (typeof nestedId === 'number') return String(nestedId);
+		if (typeof nestedId === 'string') return nestedId.trim();
+	}
+	return '';
+}
+
+function getParentCategoryToken(category: Category): string | null {
+	const candidates = [
+		category.parent_categoria,
+		category.parent,
+		category.parent_id,
+		category.categoria_padre,
+		category.categoria_padre_id,
+		category.parent_category,
+		category.parentCategory,
+		category.padre,
+	] as unknown[];
+
+	for (const candidate of candidates) {
+		const token = resolveToken(candidate);
+		if (token) return token;
+	}
+
+	return null;
+}
+
+function pushToken(map: Map<string, string>, raw: string | undefined) {
+	if (!raw) return;
+	const label = raw.trim();
+	if (!label) return;
+	const slug = normalizeFilterToken(label);
+	if (!slug || map.has(slug)) return;
+	map.set(slug, label);
+}
+
+function extractRawTagValues(value: unknown): string[] {
+	if (!value) return [];
+
+	if (typeof value === 'string') {
+		return value
+			.split(/[;,|]/)
+			.map((entry) => entry.trim())
+			.filter(Boolean);
+	}
+
+	if (Array.isArray(value)) {
+		return value
+			.flatMap((entry) => extractRawTagValues(entry))
+			.filter(Boolean);
+	}
+
+	if (typeof value === 'object') {
+		const candidate = value as Record<string, unknown>;
+		const knownFields = ['titolo_tag', 'nome_tag', 'tag', 'label', 'title', 'nome'];
+		for (const field of knownFields) {
+			if (typeof candidate[field] === 'string') {
+				return extractRawTagValues(candidate[field]);
+			}
+		}
+	}
+
+	return [];
+}
+
+function extractProductTags(product: Product) {
+	if (Array.isArray(product?.Tag) && product.Tag.length > 0) {
+		const fromRelations = product.Tag
+			.map((entry) => {
+				const related = entry?.Tags_id && typeof entry.Tags_id === 'object' ? entry.Tags_id : null;
+				const label = related?.titolo_tag?.trim() || '';
+				if (!label) return null;
+				return { slug: normalizeFilterToken(label), label };
+			})
+			.filter((entry): entry is { slug: string; label: string } => Boolean(entry?.slug));
+		if (fromRelations.length > 0) {
+			return Array.from(new Map(fromRelations.map((entry) => [entry.slug, entry.label])), ([slug, label]) => ({ slug, label }));
+		}
+	}
+
+	const tagFields = ['tags', 'tag', 'filtri_tag', 'tag_filtri', 'tag_prodotto', 'etichette'];
+	const tagMap = new Map<string, string>();
+
+	for (const field of tagFields) {
+		const value = product[field];
+		const values = extractRawTagValues(value);
+		for (const raw of values) {
+			pushToken(tagMap, raw);
+		}
+	}
+
+	return Array.from(tagMap, ([slug, label]) => ({ slug, label }));
+}
+
+function getProductCategories(product: Product) {
+	if (!Array.isArray(product?.Categoria)) return [];
+
+	return product.Categoria
+		.map((entry) => {
+			const category = entry?.Categorie_id && typeof entry.Categorie_id === 'object' ? entry.Categorie_id : null;
+			if (!category) return null;
+			const token = resolveToken(category.id);
+			if (!token) return null;
+			return {
+				token,
+				label: category.titolo_categoria || '',
+			};
+		})
+		.filter((entry): entry is { token: string; label: string } => Boolean(entry));
+}
+
+const categories = await fetchCategories();
+const products = await fetchProducts();
+const productSlugMap = buildProductSlugMap(products);
+
+const categoryTreeMap = new Map<string, CategoryTreeNode>();
+for (const category of categories) {
+	const token = resolveToken(category?.id);
+	if (!token) continue;
+	const label = (category.titolo_categoria || token).trim();
+	const parentToken = getParentCategoryToken(category);
+	categoryTreeMap.set(token, {
+		token,
+		label,
+		parentToken,
+		depth: 0,
+	});
+}
+
+const childrenByParent = new Map<string | null, string[]>();
+for (const node of categoryTreeMap.values()) {
+	const parentKey = node.parentToken;
+	if (!childrenByParent.has(parentKey)) childrenByParent.set(parentKey, []);
+	childrenByParent.get(parentKey)?.push(node.token);
+}
+
+for (const childSlugs of childrenByParent.values()) {
+	childSlugs.sort((a, b) => {
+		const aLabel = categoryTreeMap.get(a)?.label || a;
+		const bLabel = categoryTreeMap.get(b)?.label || b;
+		return aLabel.localeCompare(bLabel, 'it', { sensitivity: 'base' });
+	});
+}
+
+const buildCategoryTree = (parentSlug: string | null, depth = 0): CategoryTreeBranch[] => {
+	const childTokens = childrenByParent.get(parentSlug) || [];
+	return childTokens
+		.map((childToken) => {
+			const node = categoryTreeMap.get(childToken);
+			if (!node) return null;
+			return {
+				token: node.token,
+				label: node.label,
+				depth,
+				children: buildCategoryTree(node.token, depth + 1),
+			};
+		})
+		.filter((entry): entry is CategoryTreeBranch => Boolean(entry));
+};
+
+const categoryTree = buildCategoryTree(null, 0);
+
+const parentByCategory = new Map<string, string>();
+for (const node of categoryTreeMap.values()) {
+	if (node.parentToken) parentByCategory.set(node.token, node.parentToken);
+}
+
+const sidebarTagMap = new Map<string, string>();
+
+const productsData = products.map((product) => {
+	const title = getProductTitle(product) || 'Prodotto';
+	const slug = typeof product.id === 'number' ? productSlugMap.get(product.id) || '' : '';
+	const href = slug ? `/prodotti/${slug}` : '';
+	const imageSrc = resolveImageSrc(product.foto_prodotto);
+	const productCategories = getProductCategories(product);
+	const categoryTokens = Array.from(new Set(productCategories.map((entry) => entry.token)));
+	const categoryLabels = productCategories.map((entry) => entry.label).filter(Boolean);
+	const categoriesWithAncestors = new Set<string>();
+	for (const categoryToken of categoryTokens) {
+		let current: string | undefined = categoryToken;
+		while (current) {
+			if (categoriesWithAncestors.has(current)) break;
+			categoriesWithAncestors.add(current);
+			current = parentByCategory.get(current);
+		}
+	}
+	const tags = extractProductTags(product);
+
+	for (const tag of tags) {
+		if (!sidebarTagMap.has(tag.slug)) sidebarTagMap.set(tag.slug, tag.label);
+	}
+
+	return {
+		product,
+		title,
+		href,
+		imageSrc,
+		categorySlugs: Array.from(categoriesWithAncestors),
+		categoryLabels,
+		tags,
+		searchText: [
+			title,
+			...categoryLabels,
+			...tags.map((tag) => tag.label),
+		]
+			.join(' ')
+			.toLowerCase(),
+	};
+});
+
+const sidebarTags = Array.from(sidebarTagMap, ([slug, label]) => ({ slug, label }));
+const sidebarTagEntriesJson = JSON.stringify(sidebarTags.map((tag) => [tag.slug, tag.label]));
+const parentByCategoryEntriesJson = JSON.stringify(Array.from(parentByCategory.entries()));
+
+function escapeHtml(value: string) {
+	return value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&#39;');
+}
+
+const renderCategoryNodesHtml = (nodes: CategoryTreeBranch[]): string =>
+	nodes
+		.map((node) => {
+			const hasChildren = node.children.length > 0;
+			const childrenHtml = hasChildren
+				? `<div class="products_tree_children" data-tree-children="${escapeHtml(node.token)}" hidden>${renderCategoryNodesHtml(node.children)}</div>`
+				: '';
+			const toggleHtml = hasChildren
+				? `<button type="button" class="products_tree_toggle" data-tree-toggle="${escapeHtml(node.token)}" aria-expanded="false" aria-label="Apri ${escapeHtml(node.label)}"><span></span></button>`
+				: '<span class="products_tree_toggle_placeholder" aria-hidden="true"></span>';
+
+			return `<div class="products_tree_node${hasChildren ? ' has-children' : ''}" data-tree-node="${escapeHtml(node.token)}" data-tree-depth="${node.depth}" style="--tree-depth:${node.depth}"><div class="products_tree_row">${toggleHtml}<button type="button" class="products_tree_item" data-tree-category="${escapeHtml(node.token)}" role="treeitem">${escapeHtml(node.label)}</button></div>${childrenHtml}</div>`;
+		})
+		.join('');
+
+const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
+---
+
+{productsData.length > 0 && (
+	<section class="products_block" data-aos="fade-up" data-aos-duration="1500">
+		<div class="products_block_inner">
+			{titolo && <h2 class="products_block_title">{titolo}</h2>}
+
+			<form class="products_search" data-products-search-form role="search">
+				<input
+					type="search"
+					class="products_search_input"
+					data-products-search
+					placeholder="Cerca per prodotto, categoria o tag"
+					aria-label="Cerca prodotti"
+				/>
+				<button class="products_search_button" type="submit">Cerca</button>
+			</form>
+
+			<div class="products_layout" data-products-layout>
+				<div class="products_results">
+					<div class="products_selected_filters" data-selected-filters>
+						<p class="products_selected_category_value" data-selected-category-name>Tutti i prodotti</p>
+						<div class="products_category_tags" data-category-tag-wrap hidden>
+							<div class="products_tag_pills" data-category-tag-pills-selected></div>
+						</div>
+					</div>
+
+					<div class="products_results_head">
+						<p class="products_results_count" data-results-count>
+							{productsData.length} prodotti
+						</p>
+						<button class="products_clear_filters" type="button" data-clear-filters>
+							Reset filtri
+						</button>
+					</div>
+
+					<div class="products_grid">
+						{productsData.map((entry) => {
+							const Tag = entry.href ? 'a' : 'div';
+							return (
+								<Tag
+									class="products_card"
+									href={entry.href || undefined}
+									data-categories={entry.categorySlugs.join(',')}
+									data-tags={entry.tags.map((tag) => tag.slug).join(',')}
+									data-search={entry.searchText}
+								>
+									{entry.imageSrc && (
+										<div class="products_card_media">
+											<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+										</div>
+									)}
+									<h3 class="products_card_title">{entry.title}</h3>
+								</Tag>
+							);
+						})}
+					</div>
+
+					<p class="products_empty">Nessun prodotto disponibile con i filtri selezionati.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+)}
+
+<script is:inline define:vars={{ sidebarTagEntriesJson: JSON.parse(sidebarTagEntriesJson), parentByCategoryEntriesJson: JSON.parse(parentByCategoryEntriesJson) }}>
+	(() => {
+		const tagLabelMap = new Map(sidebarTagEntriesJson);
+		const parentByCategoryMap = new Map(parentByCategoryEntriesJson);
+		const splitValues = (value) =>
+			(value || '')
+				.split(',')
+				.map((item) => item.trim())
+				.filter(Boolean);
+
+		const categoryButtons = Array.from(document.querySelectorAll('[data-tree-category]'));
+		const treeToggleButtons = Array.from(document.querySelectorAll('[data-tree-toggle]'));
+		const cards = Array.from(document.querySelectorAll('.products_card'));
+		const emptyElement = document.querySelector('.products_empty');
+		const countElement = document.querySelector('[data-results-count]');
+		const clearButton = document.querySelector('[data-clear-filters]');
+		const selectedCategoryElement = document.querySelector('[data-selected-category-name]');
+		const selectedCategoryPillsContainer = document.querySelector('[data-category-tag-pills-selected]');
+		const selectedCategoryTagWrap = document.querySelector('[data-category-tag-wrap]');
+		const searchForm = document.querySelector('[data-products-search-form]');
+		const searchInput = document.querySelector('[data-products-search]');
+		const productsLayout = document.querySelector('[data-products-layout]');
+
+		const params = new URLSearchParams(window.location.search);
+		const queryCategory = (params.get('categoria') || '').trim();
+
+		const availableCategories = new Set(
+			categoryButtons.map((button) => button.getAttribute('data-tree-category')).filter(Boolean)
+		);
+		let selectedCategory = queryCategory || 'all';
+		if (!availableCategories.has(selectedCategory)) selectedCategory = 'all';
+		const defaultCategory = selectedCategory;
+		const selectedTags = new Set();
+		let searchTerm = '';
+		let activeSearchTerm = '';
+
+		const updateCategoryUI = () => {
+			categoryButtons.forEach((button) => {
+				const value = button.getAttribute('data-tree-category') || 'all';
+				const isActive = value === selectedCategory;
+				button.classList.toggle('is-active', isActive);
+				const row = button.closest('.products_tree_row');
+				if (row instanceof HTMLElement) {
+					row.classList.toggle('is-active', isActive);
+				}
+			});
+
+			if (selectedCategoryElement instanceof HTMLElement) {
+				const activeButton = categoryButtons.find(
+					(button) => (button.getAttribute('data-tree-category') || 'all') === selectedCategory
+				);
+				selectedCategoryElement.textContent = activeButton?.textContent?.trim() || 'Tutti i prodotti';
+			}
+		};
+
+		const updateSearchModeUI = () => {
+			if (!(productsLayout instanceof HTMLElement)) return;
+			productsLayout.classList.toggle('is-search-mode', Boolean(activeSearchTerm));
+		};
+
+		const updateCategoryUrl = () => {
+			if (activeSearchTerm) return;
+			const nextParams = new URLSearchParams(window.location.search);
+			if (selectedCategory === 'all') {
+				nextParams.delete('categoria');
+			} else {
+				nextParams.set('categoria', selectedCategory);
+			}
+			const query = nextParams.toString();
+			const targetUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+			window.history.replaceState({}, '', targetUrl);
+		};
+
+		const expandTreeBranch = (slug) => {
+			if (!slug || slug === 'all') return;
+			const children = document.querySelector(`[data-tree-children="${slug}"]`);
+			if (children instanceof HTMLElement) {
+				children.hidden = false;
+			}
+			const toggle = document.querySelector(`[data-tree-toggle="${slug}"]`);
+			if (toggle instanceof HTMLElement) {
+				toggle.setAttribute('aria-expanded', 'true');
+			}
+		};
+
+		const expandCategoryPath = (slug) => {
+			if (!slug || slug === 'all') return;
+			let current = slug;
+			while (current) {
+				const parentToken = parentByCategoryMap.get(current);
+				if (!parentToken) break;
+				expandTreeBranch(parentToken);
+				current = parentToken;
+			}
+		};
+
+		const getVisibleTagsForCategory = () => {
+			const tags = new Set();
+			cards.forEach((card) => {
+				const categories = splitValues(card.getAttribute('data-categories'));
+				const categoryMatch = selectedCategory === 'all' || categories.includes(selectedCategory);
+				if (!categoryMatch) return;
+				splitValues(card.getAttribute('data-tags')).forEach((tag) => tags.add(tag));
+			});
+			return Array.from(tags);
+		};
+
+		const createTagPillButton = (tag, label) => {
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.className = 'products_tag_pill';
+			button.textContent = label;
+			button.setAttribute('data-tag-pill', tag);
+			button.setAttribute('aria-pressed', selectedTags.has(tag) ? 'true' : 'false');
+			if (selectedTags.has(tag)) button.classList.add('is-active');
+			button.addEventListener('click', () => {
+				if (selectedTags.has(tag)) {
+					selectedTags.delete(tag);
+				} else {
+					selectedTags.add(tag);
+				}
+				applyFilters();
+			});
+			return button;
+		};
+
+		const renderCategoryTagPills = () => {
+			if (!(selectedCategoryPillsContainer instanceof HTMLElement) || !(selectedCategoryTagWrap instanceof HTMLElement)) return;
+
+			selectedCategoryPillsContainer.innerHTML = '';
+
+			if (selectedCategory === 'all' || selectedTags.size > 0 || activeSearchTerm) {
+				selectedCategoryTagWrap.hidden = true;
+				return;
+			}
+
+			const availableTags = getVisibleTagsForCategory();
+
+			selectedTags.forEach((tag) => {
+				if (!availableTags.includes(tag)) selectedTags.delete(tag);
+			});
+
+			if (availableTags.length === 0) {
+				selectedCategoryTagWrap.hidden = true;
+				return;
+			}
+
+			selectedCategoryTagWrap.hidden = false;
+
+			availableTags
+				.sort((a, b) => (tagLabelMap.get(a) || a).localeCompare(tagLabelMap.get(b) || b, 'it', { sensitivity: 'base' }))
+				.forEach((tag) => {
+					selectedCategoryPillsContainer.appendChild(createTagPillButton(tag, tagLabelMap.get(tag) || tag));
+				});
+		};
+
+		const updateClearButton = () => {
+			const hasFilters = selectedCategory !== 'all' || selectedTags.size > 0 || Boolean(activeSearchTerm);
+			if (clearButton instanceof HTMLElement) {
+				clearButton.style.visibility = hasFilters ? 'visible' : 'hidden';
+			}
+		};
+
+		const applyFilters = () => {
+			renderCategoryTagPills();
+			let visibleCount = 0;
+
+			cards.forEach((card) => {
+				const categories = splitValues(card.getAttribute('data-categories'));
+				const tags = splitValues(card.getAttribute('data-tags'));
+
+				const categoryMatch = activeSearchTerm ? true : selectedCategory === 'all' || categories.includes(selectedCategory);
+				const tagsMatch =
+					activeSearchTerm ||
+					selectedTags.size === 0 ||
+					Array.from(selectedTags).every((tag) => tags.includes(tag));
+				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
+				const searchMatch = !activeSearchTerm || searchable.includes(activeSearchTerm);
+
+				const match = categoryMatch && tagsMatch && searchMatch;
+				card.style.display = match ? '' : 'none';
+				if (match) visibleCount += 1;
+			});
+
+			if (emptyElement instanceof HTMLElement) {
+				emptyElement.style.display = visibleCount > 0 ? 'none' : 'block';
+			}
+
+			if (countElement instanceof HTMLElement) {
+				countElement.textContent = `${visibleCount} prodotti`;
+			}
+
+			updateCategoryUI();
+			updateCategoryUrl();
+			updateSearchModeUI();
+			updateClearButton();
+		};
+
+		categoryButtons.forEach((button) => {
+			button.addEventListener('click', () => {
+				selectedCategory = button.getAttribute('data-tree-category') || 'all';
+				selectedTags.clear();
+				expandCategoryPath(selectedCategory);
+				applyFilters();
+			});
+		});
+
+		treeToggleButtons.forEach((toggle) => {
+			toggle.addEventListener('click', () => {
+				const slug = toggle.getAttribute('data-tree-toggle') || '';
+				const children = document.querySelector(`[data-tree-children="${slug}"]`);
+				if (!(children instanceof HTMLElement)) return;
+				const expanded = toggle.getAttribute('aria-expanded') === 'true';
+				toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+				children.hidden = expanded;
+			});
+		});
+
+		if (clearButton instanceof HTMLElement) {
+			clearButton.addEventListener('click', () => {
+				selectedCategory = defaultCategory;
+				selectedTags.clear();
+				searchTerm = '';
+				activeSearchTerm = '';
+				if (searchInput instanceof HTMLInputElement) {
+					searchInput.value = '';
+				}
+				applyFilters();
+			});
+		}
+
+		if (searchInput instanceof HTMLInputElement) {
+			searchInput.addEventListener('input', () => {
+				searchTerm = searchInput.value.trim().toLowerCase();
+			});
+		}
+
+		if (searchForm instanceof HTMLFormElement) {
+			searchForm.addEventListener('submit', (event) => {
+				event.preventDefault();
+				activeSearchTerm = searchTerm;
+				applyFilters();
+			});
+		}
+
+		applyFilters();
+		expandCategoryPath(selectedCategory);
+	})();
+</script>
+
+<style>
+	.products_block {
+		padding: 0 20px 56px;
+	}
+
+	.products_block_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.products_block_title {
+		margin: 0 0 26px;
+		font-size: clamp(28px, 3.5vw, 40px);
+		color: var(--nero);
+		border-bottom: 4px solid #ff4000;
+		padding-bottom: 20px;
+	}
+
+	.products_search {
+		margin-bottom: 20px;
+		display: flex;
+		gap: 10px;
+		align-items: center;
+	}
+
+	.products_search_input {
+		width: 100%;
+		max-width: 520px;
+		height: 52px;
+		border: 1px solid rgba(0, 0, 0, 0.18);
+		border-radius: 999px;
+		padding: 0 20px;
+		font: inherit;
+		font-size: 16px;
+		background: #fff;
+		color: var(--nero);
+	}
+
+	.products_search_input:focus {
+		outline: none;
+		border-color: var(--blu);
+		box-shadow: 0 0 0 3px rgba(255, 64, 0, 0.18);
+	}
+
+	.products_search_button {
+		appearance: none;
+		border: 0;
+		border-radius: 999px;
+		padding: 0 24px;
+		height: 52px;
+		font: inherit;
+		font-weight: 700;
+		background: var(--blu);
+		color: #fff;
+		cursor: pointer;
+		transition: transform 180ms ease, filter 180ms ease;
+	}
+
+	.products_search_button:hover {
+		filter: brightness(1.04);
+		transform: translateY(-1px);
+	}
+
+	.products_layout {
+		display: block;
+	}
+
+	.products_layout.is-search-mode .products_categories_menu {
+		display: none;
+	}
+
+	.products_categories_menu {
+		margin-bottom: 14px;
+	}
+
+	.products_tree {
+		--tree-indent: 18px;
+		display: block;
+		border: 1px solid #d2d2d2;
+		border-radius: 4px;
+		background: #efefef;
+		overflow: hidden;
+	}
+
+	.products_tree::before {
+		display: none;
+	}
+
+	.products_tree_node {
+		display: block;
+	}
+
+	.products_tree_row {
+		display: grid;
+		grid-template-columns: 26px minmax(0, 1fr);
+		align-items: stretch;
+		min-height: 40px;
+		border-top: 1px solid #d2d2d2;
+		background: #efefef;
+		transition: background-color 160ms ease;
+	}
+
+	.products_tree_row:hover {
+		background: #e6e6e6;
+	}
+
+	.products_tree_row.is-active {
+		background: #4689c5;
+	}
+
+	.products_tree_children {
+		display: none;
+		padding-left: 0;
+	}
+
+	.products_tree_children[data-tree-children][hidden] {
+		display: none;
+	}
+
+	.products_tree_children:not([hidden]) {
+		display: block;
+	}
+
+	.products_tree_toggle,
+	.products_tree_toggle_placeholder {
+		width: 26px;
+		height: 100%;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.products_tree_toggle {
+		appearance: none;
+		border: 0;
+		background: transparent;
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.products_tree_toggle::before {
+		content: '+';
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 12px;
+		height: 12px;
+		background: #f9f9f9;
+		border-radius: 2px;
+		border: 1px solid #666;
+		font-size: 11px;
+		font-weight: 700;
+		color: #333;
+		line-height: 1;
+		transition: all 150ms ease;
+	}
+
+	.products_tree_toggle:hover::before {
+		background: #fff;
+	}
+
+	.products_tree_toggle[aria-expanded='true']::before {
+		content: '−';
+		font-size: 12px;
+	}
+
+	.products_tree_toggle_placeholder {
+		visibility: hidden;
+	}
+
+	.products_tree_root,
+	.products_tree_item {
+		appearance: none;
+		text-align: left;
+		background: transparent;
+		border: 0;
+		border-radius: 0;
+		padding: 10px 12px;
+		font: inherit;
+		font-size: 15px;
+		line-height: 1.35;
+		color: #1f1f1f;
+		cursor: pointer;
+		width: 100%;
+		transition: color 160ms ease;
+	}
+
+	.products_tree_root {
+		display: block;
+		font-weight: 500;
+		min-height: 40px;
+		background: #efefef;
+		border-bottom: 1px solid #d2d2d2;
+	}
+
+	.products_tree_root:hover,
+	.products_tree_item:hover {
+		background: transparent;
+		color: #111;
+	}
+
+	.products_tree_root.is-active,
+	.products_tree_item.is-active {
+		background: transparent;
+		color: #fff;
+		font-weight: 600;
+	}
+
+	.products_tree_root.is-active {
+		background: #4689c5;
+	}
+
+	.products_tree_item {
+		padding-left: calc(8px + (var(--tree-depth, 0) * var(--tree-indent)));
+		position: relative;
+	}
+
+	.products_tree_row.is-active .products_tree_item {
+		color: #fff;
+	}
+
+	.products_tree_row.is-active .products_tree_toggle::before {
+		border-color: rgba(255, 255, 255, 0.9);
+		color: #fff;
+		background: transparent;
+	}
+
+	.products_tree_item::before {
+		display: none;
+	}
+
+	.products_tree_item::after {
+		display: none;
+	}
+
+	.products_selected_filters {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 16px;
+		border-radius: 14px;
+		background: #f7f7f7;
+		border: 1px solid rgba(0, 0, 0, 0.09);
+	}
+
+	.products_selected_category_label {
+		margin: 0;
+		font-size: 14px;
+		font-weight: 700;
+		letter-spacing: 0.8px;
+		text-transform: uppercase;
+		color: rgba(0, 0, 0, 0.75);
+	}
+
+	.products_selected_category_value {
+		margin: 0;
+		font-size: 22px;
+		line-height: 1.2;
+		font-weight: 700;
+		color: var(--nero);
+	}
+
+	.products_tag_pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.products_tag_pills :global(.products_tag_pill) {
+		appearance: none;
+		border: none;
+		background: #999;
+		color: #fff;
+		padding: 12px 20px;
+		border-radius: 20px;
+		font: inherit;
+		font-size: 13px;
+		font-weight: bold;
+		cursor: pointer;
+		transition: all 180ms ease;
+	}
+
+	.products_tag_pills :global(.products_tag_pill:hover) {
+		filter: brightness(1.05);
+	}
+
+	.products_tag_pills :global(.products_tag_pill.is-active) {
+		background: var(--blu);
+		color: #fff;
+	}
+
+	.products_results {
+		display: flex;
+		flex-direction: column;
+		gap: 18px;
+	}
+
+	.products_results_head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 14px;
+	}
+
+	.products_results_count {
+		margin: 0;
+		font-size: 15px;
+		font-weight: 600;
+		color: rgba(0, 0, 0, 0.78);
+	}
+
+	.products_clear_filters {
+		visibility: hidden;
+		appearance: none;
+		border: 0;
+		background: transparent;
+		color: var(--blu);
+		font: inherit;
+		font-size: 14px;
+		font-weight: 600;
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.products_grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 20px;
+	}
+
+	.products_card {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		padding: 24px;
+		background: var(--bianco);
+		border: 1px solid rgba(0, 0, 0, 0.09);
+		border-radius: 14px;
+		color: var(--nero);
+		text-decoration: none;
+		transition: transform 180ms ease, box-shadow 180ms ease;
+	}
+
+	a.products_card:hover {
+		transform: translateY(-3px);
+		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+		color: #ff4000;
+	}
+
+	.products_card_media {
+		overflow: hidden;
+		border-radius: 10px;
+		aspect-ratio: 4 / 3;
+		background: #f8f8f8;
+	}
+
+	.products_card_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
+	.products_card_title {
+		margin: 0;
+		font-size: 24px;
+		line-height: 1.15;
+		text-align: center;
+	}
+
+	.products_empty {
+		display: none;
+		margin: 4px 0 0;
+		font-size: 15px;
+		color: rgba(0, 0, 0, 0.68);
+	}
+
+	@media (max-width: 1080px) {
+		.products_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 760px) {
+		.products_grid {
+			grid-template-columns: 1fr;
+		}
+
+		.products_card {
+			padding: 18px;
+		}
+
+		.products_results_head {
+			align-items: flex-start;
+			flex-direction: column;
+		}
+	}
+</style>

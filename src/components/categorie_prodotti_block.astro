@@ -1,0 +1,229 @@
+---
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+import { slugifyLabel } from '../lib/slug';
+
+interface Category {
+	id?: number | string;
+	status?: string;
+	sort?: number;
+	titolo_categoria?: string;
+	descrizione_categoria?: string;
+	immagine_categoria?: unknown;
+	immagine?: string;
+	image?: string;
+	parent?: unknown;
+	parent_categoria?: unknown;
+	parent_id?: unknown;
+	categoria_padre?: unknown;
+	categoria_padre_id?: unknown;
+	[key: string]: unknown;
+}
+
+interface Props {
+	titolo?: string;
+}
+
+const { titolo = 'Categorie prodotti' } = Astro.props;
+
+function resolveImageSrc(value: string | undefined) {
+	return directusAssetUrl(value, {
+		width: 760,
+		quality: 72,
+		format: 'webp',
+	});
+}
+
+function resolveAssetId(value: unknown): string {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object') {
+		const id = (value as { id?: string | null }).id;
+		return typeof id === 'string' ? id : '';
+	}
+	return '';
+}
+
+function extractParentId(raw: unknown): string {
+	if (raw === null || raw === undefined || raw === '') return '';
+	if (typeof raw === 'number' || typeof raw === 'string') return String(raw).trim();
+	if (typeof raw === 'object' && raw) {
+		const id = (raw as { id?: number | string | null }).id;
+		if (id === null || id === undefined) return '';
+		return String(id).trim();
+	}
+	return '';
+}
+
+function getParentKey(category: Category): string {
+	const candidates = [
+		category.parent_categoria,
+		category.parent,
+		category.parent_id,
+		category.categoria_padre,
+		category.categoria_padre_id,
+		category.parent_category,
+		category.parentCategory,
+		category.padre,
+	] as unknown[];
+
+	for (const value of candidates) {
+		const resolved = extractParentId(value);
+		if (resolved) return resolved;
+	}
+
+	return '';
+}
+
+async function fetchParentCategories(): Promise<Category[]> {
+	try {
+		const url = directusItemsUrl('Categorie');
+		url.searchParams.set('fields', '*');
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('filter[parent_categoria][_null]', 'true');
+		url.searchParams.set('sort', 'sort,titolo_categoria');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		const categories = Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
+		return categories.filter((category) => !getParentKey(category));
+	} catch (error) {
+		console.error('Errore caricando le categorie padre prodotti:', error);
+		return [];
+	}
+}
+
+const categories = await fetchParentCategories();
+const usedSlugs = new Set<string>();
+
+const cards = categories
+	.filter((category) => category?.id !== null && category?.id !== undefined)
+	.map((category) => {
+		const baseSlug = slugifyLabel(category.titolo_categoria) || String(category.id || '').trim();
+		if (!baseSlug) return null;
+		let slug = baseSlug;
+		if (usedSlugs.has(slug)) {
+			slug = `${baseSlug}-${String(category.id)}`;
+		}
+		usedSlugs.add(slug);
+		const imageField =
+			resolveAssetId(category.immagine_categoria) ||
+			resolveAssetId(category.immagine) ||
+			resolveAssetId(category.image);
+
+		return {
+			title: category.titolo_categoria || 'Categoria',
+			description: category.descrizione_categoria || '',
+			href: `/prodotti/categoria/${encodeURIComponent(slug)}`,
+			imageSrc: resolveImageSrc(imageField),
+		};
+	})
+	.filter(
+		(entry): entry is { title: string; description: string; href: string; imageSrc: string } =>
+			Boolean(entry)
+	);
+---
+
+{cards.length > 0 && (
+	<section class="categorie_prodotti_block" data-aos="fade-up" data-aos-duration="1500">
+		<div class="categorie_prodotti_inner">
+			{titolo && <h2 class="categorie_prodotti_title">{titolo}</h2>}
+
+			<div class="categorie_prodotti_grid">
+				{cards.map((single) => (
+					<a class="categorie_prodotti_card" href={single.href}>
+						{single.imageSrc && (
+							<div class="categorie_prodotti_media">
+								<img src={single.imageSrc} alt={single.title} loading="lazy" />
+							</div>
+						)}
+						<h3 class="categorie_prodotti_card_title">{single.title}</h3>
+						{single.description && (
+							<p class="categorie_prodotti_card_subtitle">{single.description}</p>
+						)}
+					</a>
+				))}
+			</div>
+		</div>
+	</section>
+)}
+
+<style>
+	.categorie_prodotti_block {
+		padding: 40px 20px 20px;
+	}
+
+	.categorie_prodotti_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.categorie_prodotti_title {
+		margin: 0 0 24px;
+		color: #000;
+		font-size: clamp(28px, 4vw, 42px);
+	}
+
+	.categorie_prodotti_grid {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 24px;
+	}
+
+	.categorie_prodotti_card {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding: 55px 40px;
+		background: var(--bianco);
+		border-radius: 18px;
+		color: var(--nero);
+		transition: transform 200ms ease, box-shadow 200ms ease;
+		min-height: 100%;
+		text-decoration: none;
+	}
+
+	.categorie_prodotti_card:hover {
+		transform: translateY(-4px);
+		box-shadow: 0 16px 30px rgba(0, 0, 0, 0.15);
+	}
+
+	.categorie_prodotti_media {
+		overflow: hidden;
+		border-radius: 12px;
+		aspect-ratio: 4 / 3;
+		background: #fff;
+	}
+
+	.categorie_prodotti_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
+	.categorie_prodotti_card_title {
+		margin: 4px 0 0;
+		font-size: 23px;
+		line-height: 23px;
+		text-align: center;
+	}
+
+	.categorie_prodotti_card_subtitle {
+		margin: 0;
+		font-size: 16px;
+		line-height: 1.45;
+		color: rgba(0, 0, 0, 0.75);
+		text-align: center;
+	}
+
+	@media (max-width: 1024px) {
+		.categorie_prodotti_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 640px) {
+		.categorie_prodotti_grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

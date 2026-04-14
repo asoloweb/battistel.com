@@ -1,0 +1,594 @@
+---
+import Breadcrumbs from './Breadcrumbs.astro';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+import { buildProductSlugMap, getProductTitle } from '../lib/products';
+import { slugifyLabel } from '../lib/slug';
+
+interface Category {
+	id?: number | string;
+	status?: string;
+	sort?: number;
+	titolo_categoria?: string;
+	descrizione_categoria?: string;
+	parent_categoria?: unknown;
+	parent?: unknown;
+	parent_id?: unknown;
+	categoria_padre?: unknown;
+	categoria_padre_id?: unknown;
+	[key: string]: unknown;
+}
+
+interface CategoryRelation {
+	Categorie_id?: Category | number | null;
+}
+
+interface Product {
+	id?: number;
+	status?: string;
+	sort?: number;
+	codice_prodotto?: string;
+	titolo?: string;
+	foto_prodotto?: string;
+	Categoria?: CategoryRelation[];
+	Tag?: { Tags_id?: { titolo_tag?: string } | number | null }[];
+	[key: string]: unknown;
+}
+
+interface Props {
+	titolo?: string;
+	filterCategorySlug: string;
+	selectedCategoryLabel: string;
+}
+
+const { titolo = 'Prodotti', filterCategorySlug, selectedCategoryLabel } = Astro.props as Props;
+
+function resolveImageSrc(value: string | undefined) {
+	return directusAssetUrl(value, {
+		width: 760,
+		quality: 72,
+		format: 'webp',
+	});
+}
+
+function normalizeFilterToken(value: string) {
+	return (value || '').trim().toLowerCase();
+}
+
+function resolveToken(value: unknown): string {
+	if (typeof value === 'number') return String(value);
+	if (typeof value === 'string') return value.trim();
+	if (typeof value === 'object' && value) {
+		const nestedId = (value as { id?: unknown }).id;
+		if (typeof nestedId === 'number') return String(nestedId);
+		if (typeof nestedId === 'string') return nestedId.trim();
+	}
+	return '';
+}
+
+function getParentCategoryToken(category: Category): string | null {
+	const candidates = [
+		category.parent_categoria,
+		category.parent,
+		category.parent_id,
+		category.categoria_padre,
+		category.categoria_padre_id,
+		category.parent_category,
+		category.parentCategory,
+		category.padre,
+	] as unknown[];
+
+	for (const candidate of candidates) {
+		const token = resolveToken(candidate);
+		if (token) return token;
+	}
+
+	return null;
+}
+
+async function fetchCategories(): Promise<Category[]> {
+	try {
+		const url = directusItemsUrl('Categorie');
+		url.searchParams.set('fields', 'id,titolo_categoria,descrizione_categoria,parent_categoria,status,sort');
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('sort', 'sort,titolo_categoria');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
+	} catch (error) {
+		console.error('Errore caricando le categorie prodotti:', error);
+		return [];
+	}
+}
+
+async function fetchProducts(): Promise<Product[]> {
+	try {
+		const url = directusItemsUrl('Prodotti');
+		url.searchParams.set(
+			'fields',
+			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag'
+		);
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('limit', '-1');
+		url.searchParams.set('sort', 'sort,codice_prodotto');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Product[]) : [];
+	} catch (error) {
+		console.error('Errore caricando i prodotti:', error);
+		return [];
+	}
+}
+
+function extractProductTags(product: Product) {
+	if (!Array.isArray(product?.Tag)) return [];
+	const tags = product.Tag
+		.map((entry) => {
+			const related = entry?.Tags_id && typeof entry.Tags_id === 'object' ? entry.Tags_id : null;
+			const label = related?.titolo_tag?.trim() || '';
+			if (!label) return null;
+			return { slug: normalizeFilterToken(label), label };
+		})
+		.filter((entry): entry is { slug: string; label: string } => Boolean(entry));
+
+	return Array.from(new Map(tags.map((entry) => [entry.slug, entry.label])), ([slug, label]) => ({ slug, label }));
+}
+
+function getProductCategories(product: Product) {
+	if (!Array.isArray(product?.Categoria)) return [];
+
+	return product.Categoria
+		.map((entry) => {
+			const category = entry?.Categorie_id && typeof entry.Categorie_id === 'object' ? entry.Categorie_id : null;
+			if (!category) return null;
+			const token = resolveToken(category.id);
+			const label = category.titolo_categoria?.trim() || '';
+			if (!token || !label) return null;
+			return {
+				token,
+				label,
+				slug: slugifyLabel(label) || token,
+			};
+		})
+		.filter((entry): entry is { token: string; label: string; slug: string } => Boolean(entry));
+}
+
+const categories = await fetchCategories();
+const products = await fetchProducts();
+const productSlugMap = buildProductSlugMap(products);
+
+const categoryTreeMap = new Map<string, { token: string; slug: string; parentToken: string | null }>();
+for (const category of categories) {
+	const token = resolveToken(category?.id);
+	const label = category.titolo_categoria?.trim() || '';
+	if (!token || !label) continue;
+	categoryTreeMap.set(token, {
+		token,
+		slug: slugifyLabel(label) || token,
+		parentToken: getParentCategoryToken(category),
+	});
+}
+
+const parentByCategory = new Map<string, string>();
+for (const node of categoryTreeMap.values()) {
+	if (node.parentToken) parentByCategory.set(node.token, node.parentToken);
+}
+
+const productsData = products
+	.map((product) => {
+		if (typeof product.id !== 'number') return null;
+		const slug = productSlugMap.get(product.id) || '';
+		if (!slug) return null;
+		const directCategories = getProductCategories(product);
+		const categorySlugs = new Set<string>();
+
+		for (const category of directCategories) {
+			let currentToken: string | undefined = category.token;
+			categorySlugs.add(category.slug);
+			while (currentToken) {
+				const parentToken = parentByCategory.get(currentToken);
+				if (!parentToken) break;
+				const parentNode = categoryTreeMap.get(parentToken);
+				if (!parentNode) break;
+				categorySlugs.add(parentNode.slug);
+				currentToken = parentToken;
+			}
+		}
+
+		return {
+			title: getProductTitle(product) || 'Prodotto',
+			href: `/prodotti/${slug}`,
+			imageSrc: resolveImageSrc(product.foto_prodotto),
+			categorySlugs: Array.from(categorySlugs),
+			tags: extractProductTags(product),
+			searchText: [
+				getProductTitle(product) || 'Prodotto',
+				...directCategories.map((entry) => entry.label),
+				...extractProductTags(product).map((entry) => entry.label),
+			]
+				.join(' ')
+				.toLowerCase(),
+		};
+	})
+	.filter((entry): entry is { title: string; href: string; imageSrc: string; categorySlugs: string[]; tags: { slug: string; label: string }[]; searchText: string } => Boolean(entry))
+	.filter((entry) => entry.categorySlugs.includes(filterCategorySlug));
+
+const sidebarTagMap = new Map<string, string>();
+for (const product of productsData) {
+	for (const tag of product.tags) {
+		if (!sidebarTagMap.has(tag.slug)) sidebarTagMap.set(tag.slug, tag.label);
+	}
+}
+
+const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries()));
+---
+
+{productsData.length > 0 && (
+	<section class="products_block" data-aos="fade-up" data-aos-duration="1500">
+		<div class="products_block_inner">
+			<Breadcrumbs
+				items={[
+					{ name: 'Home', href: '/' },
+					{ name: 'Prodotti', href: '/prodotti' },
+					{ name: selectedCategoryLabel },
+				]}
+				backHref="/prodotti"
+				backLabel="Torna ai prodotti"
+			/>
+
+			{titolo && <h2 class="products_block_title">{titolo}</h2>}
+
+			<form class="products_search" data-products-search-form role="search">
+				<input type="search" class="products_search_input" data-products-search placeholder="Cerca tra i prodotti della categoria" aria-label="Cerca prodotti" />
+				<button class="products_search_button" type="submit">Cerca</button>
+			</form>
+
+			<div class="products_selected_filters">
+				<p class="products_selected_category_value">{selectedCategoryLabel}</p>
+				<div class="products_category_tags" data-category-tag-wrap>
+					<div class="products_tag_pills" data-category-tag-pills-selected></div>
+				</div>
+			</div>
+
+			<div class="products_results_head">
+				<p class="products_results_count" data-results-count>{productsData.length} prodotti</p>
+				<button class="products_clear_filters" type="button" data-clear-filters>Reset filtri</button>
+			</div>
+
+			<div class="products_grid">
+				{productsData.map((entry) => (
+					<a class="products_card" href={entry.href} data-tags={entry.tags.map((tag) => tag.slug).join(',')} data-search={entry.searchText}>
+						{entry.imageSrc && (
+							<div class="products_card_media">
+								<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+							</div>
+						)}
+						<h3 class="products_card_title">{entry.title}</h3>
+					</a>
+				))}
+			</div>
+
+			<p class="products_empty">Nessun prodotto disponibile con i filtri selezionati.</p>
+		</div>
+	</section>
+)}
+
+<script is:inline define:vars={{ sidebarTagEntriesJson: JSON.parse(sidebarTagEntriesJson) }}>
+	(() => {
+		const tagLabelMap = new Map(sidebarTagEntriesJson);
+		const splitValues = (value) =>
+			(value || '')
+				.split(',')
+				.map((item) => item.trim())
+				.filter(Boolean);
+
+		const cards = Array.from(document.querySelectorAll('.products_card'));
+		const emptyElement = document.querySelector('.products_empty');
+		const countElement = document.querySelector('[data-results-count]');
+		const clearButton = document.querySelector('[data-clear-filters]');
+		const selectedCategoryPillsContainer = document.querySelector('[data-category-tag-pills-selected]');
+		const selectedCategoryTagWrap = document.querySelector('[data-category-tag-wrap]');
+		const searchForm = document.querySelector('[data-products-search-form]');
+		const searchInput = document.querySelector('[data-products-search]');
+		const selectedTags = new Set();
+		let searchTerm = '';
+		let activeSearchTerm = '';
+
+		const createTagPillButton = (tag, label) => {
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.className = 'products_tag_pill';
+			button.textContent = label;
+			button.setAttribute('data-tag-pill', tag);
+			button.setAttribute('aria-pressed', selectedTags.has(tag) ? 'true' : 'false');
+			if (selectedTags.has(tag)) button.classList.add('is-active');
+			button.addEventListener('click', () => {
+				if (selectedTags.has(tag)) {
+					selectedTags.delete(tag);
+				} else {
+					selectedTags.add(tag);
+				}
+				applyFilters();
+			});
+			return button;
+		};
+
+		const renderTagPills = () => {
+			if (!(selectedCategoryPillsContainer instanceof HTMLElement) || !(selectedCategoryTagWrap instanceof HTMLElement)) return;
+			selectedCategoryPillsContainer.innerHTML = '';
+			if (activeSearchTerm) {
+				selectedCategoryTagWrap.hidden = true;
+				return;
+			}
+
+			const availableTags = new Set();
+			cards.forEach((card) => {
+				splitValues(card.getAttribute('data-tags')).forEach((tag) => availableTags.add(tag));
+			});
+
+			selectedTags.forEach((tag) => {
+				if (!availableTags.has(tag)) selectedTags.delete(tag);
+			});
+
+			if (availableTags.size === 0) {
+				selectedCategoryTagWrap.hidden = true;
+				return;
+			}
+
+			selectedCategoryTagWrap.hidden = false;
+			Array.from(availableTags)
+				.sort((a, b) => (tagLabelMap.get(a) || a).localeCompare(tagLabelMap.get(b) || b, 'it', { sensitivity: 'base' }))
+				.forEach((tag) => {
+					selectedCategoryPillsContainer.appendChild(createTagPillButton(tag, tagLabelMap.get(tag) || tag));
+				});
+		};
+
+		const updateClearButton = () => {
+			const hasFilters = selectedTags.size > 0 || Boolean(activeSearchTerm);
+			if (clearButton instanceof HTMLElement) clearButton.style.visibility = hasFilters ? 'visible' : 'hidden';
+		};
+
+		const applyFilters = () => {
+			renderTagPills();
+			let visibleCount = 0;
+			cards.forEach((card) => {
+				const tags = splitValues(card.getAttribute('data-tags'));
+				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
+				const tagsMatch = selectedTags.size === 0 || Array.from(selectedTags).every((tag) => tags.includes(tag));
+				const searchMatch = !activeSearchTerm || searchable.includes(activeSearchTerm);
+				const match = tagsMatch && searchMatch;
+				card.style.display = match ? '' : 'none';
+				if (match) visibleCount += 1;
+			});
+
+			if (emptyElement instanceof HTMLElement) emptyElement.style.display = visibleCount > 0 ? 'none' : 'block';
+			if (countElement instanceof HTMLElement) countElement.textContent = `${visibleCount} prodotti`;
+			updateClearButton();
+		};
+
+		if (clearButton instanceof HTMLElement) {
+			clearButton.addEventListener('click', () => {
+				selectedTags.clear();
+				searchTerm = '';
+				activeSearchTerm = '';
+				if (searchInput instanceof HTMLInputElement) searchInput.value = '';
+				applyFilters();
+			});
+		}
+
+		if (searchInput instanceof HTMLInputElement) {
+			searchInput.addEventListener('input', () => {
+				searchTerm = searchInput.value.trim().toLowerCase();
+			});
+		}
+
+		if (searchForm instanceof HTMLFormElement) {
+			searchForm.addEventListener('submit', (event) => {
+				event.preventDefault();
+				activeSearchTerm = searchTerm;
+				applyFilters();
+			});
+		}
+
+		applyFilters();
+	})();
+</script>
+
+<style>
+	.products_block {
+		padding: 0 20px 56px;
+	}
+
+	.products_block_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.products_block_title {
+		margin: 0 0 26px;
+		font-size: clamp(28px, 3.5vw, 40px);
+		color: var(--nero);
+		border-bottom: 4px solid #ff4000;
+		padding-bottom: 20px;
+	}
+
+	.products_search {
+		margin-bottom: 20px;
+		display: flex;
+		gap: 10px;
+		align-items: center;
+	}
+
+	.products_search_input {
+		width: 100%;
+		max-width: 520px;
+		height: 52px;
+		border: 1px solid rgba(0, 0, 0, 0.18);
+		border-radius: 999px;
+		padding: 0 20px;
+		font: inherit;
+		font-size: 16px;
+		background: #fff;
+		color: var(--nero);
+	}
+
+	.products_search_input:focus {
+		outline: none;
+		border-color: var(--blu);
+		box-shadow: 0 0 0 3px rgba(255, 64, 0, 0.18);
+	}
+
+	.products_search_button {
+		appearance: none;
+		border: 0;
+		border-radius: 999px;
+		padding: 0 24px;
+		height: 52px;
+		font: inherit;
+		font-weight: 700;
+		background: var(--blu);
+		color: #fff;
+		cursor: pointer;
+	}
+
+	.products_selected_filters {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 16px;
+		border-radius: 14px;
+		background: #f7f7f7;
+		border: 1px solid rgba(0, 0, 0, 0.09);
+		margin-bottom: 18px;
+	}
+
+	.products_selected_category_value {
+		margin: 0;
+		font-size: 22px;
+		line-height: 1.2;
+		font-weight: 700;
+		color: var(--nero);
+	}
+
+	.products_tag_pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.products_tag_pills :global(.products_tag_pill) {
+		appearance: none;
+		border: none;
+		background: #999;
+		color: #fff;
+		padding: 12px 20px;
+		border-radius: 20px;
+		font: inherit;
+		font-size: 13px;
+		font-weight: bold;
+		cursor: pointer;
+	}
+
+	.products_tag_pills :global(.products_tag_pill.is-active) {
+		background: var(--blu);
+	}
+
+	.products_results_head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 14px;
+		margin-bottom: 18px;
+	}
+
+	.products_results_count {
+		margin: 0;
+		font-size: 15px;
+		font-weight: 600;
+		color: rgba(0, 0, 0, 0.78);
+	}
+
+	.products_clear_filters {
+		visibility: hidden;
+		appearance: none;
+		border: 0;
+		background: transparent;
+		color: var(--blu);
+		font: inherit;
+		font-size: 14px;
+		font-weight: 600;
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.products_grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 20px;
+	}
+
+	.products_card {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		padding: 24px;
+		background: var(--bianco);
+		border: 1px solid rgba(0, 0, 0, 0.09);
+		border-radius: 14px;
+		color: var(--nero);
+		text-decoration: none;
+		transition: transform 180ms ease, box-shadow 180ms ease;
+	}
+
+	a.products_card:hover {
+		transform: translateY(-3px);
+		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+		color: #ff4000;
+	}
+
+	.products_card_media {
+		overflow: hidden;
+		border-radius: 10px;
+		aspect-ratio: 4 / 3;
+		background: #f8f8f8;
+	}
+
+	.products_card_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
+	.products_card_title {
+		margin: 0;
+		font-size: 24px;
+		line-height: 1.15;
+		text-align: center;
+	}
+
+	.products_empty {
+		display: none;
+		margin: 4px 0 0;
+		font-size: 15px;
+		color: rgba(0, 0, 0, 0.68);
+	}
+
+	@media (max-width: 1080px) {
+		.products_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 760px) {
+		.products_grid {
+			grid-template-columns: 1fr;
+		}
+
+		.products_search,
+		.products_results_head {
+			flex-direction: column;
+			align-items: stretch;
+		}
+	}
+</style>
