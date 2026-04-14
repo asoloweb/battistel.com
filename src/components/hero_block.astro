@@ -150,7 +150,7 @@ function resolveImageSrc(value: string) {
 	}
 
 	.hero_block.aos-animate .hero_shape_blue {
-		animation-delay: 150ms;
+		animation: shapeScaleIn 700ms ease-out forwards, heroBluePulse 6s ease-in-out 900ms infinite;
 	}
 
 	.hero_block.aos-animate .hero_shape_orange_secondary {
@@ -171,7 +171,7 @@ function resolveImageSrc(value: string) {
 		height: 81%;
 		left: 5%;
 		top: 7%;
-		background: #1c468c;
+		background: linear-gradient(135deg,#0c2f66 0%,#184b99 100%);
 		z-index: 1;
 	}
 
@@ -195,6 +195,17 @@ function resolveImageSrc(value: string) {
 		}
 	}
 
+	@keyframes heroBluePulse {
+		0%,
+		100% {
+			transform: scale(1);
+		}
+
+		50% {
+			transform: scale(1.025);
+		}
+	}
+
 	@media (prefers-reduced-motion: reduce) {
 		.hero_shape {
 			transform: scale(1);
@@ -203,6 +214,10 @@ function resolveImageSrc(value: string) {
 
 		.hero_block.aos-animate .hero_shape {
 			animation: none;
+		}
+
+		.hero_block.aos-animate .hero_shape_blue {
+			transform: scale(1);
 		}
 	}
 

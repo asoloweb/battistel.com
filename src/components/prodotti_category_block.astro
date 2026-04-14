@@ -4,12 +4,18 @@ import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/direct
 import { buildProductSlugMap, getProductTitle } from '../lib/products';
 import { slugifyLabel } from '../lib/slug';
 
+const CATEGORY_CARD_IMAGE = 'https://battistel.prometeo.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
+const PRODUCT_CARD_IMAGE = 'https://battistel.prometeo.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
+
 interface Category {
 	id?: number | string;
 	status?: string;
 	sort?: number;
 	titolo_categoria?: string;
 	descrizione_categoria?: string;
+	immagine_categoria?: unknown;
+	immagine?: string;
+	image?: string;
 	parent_categoria?: unknown;
 	parent?: unknown;
 	parent_id?: unknown;
@@ -50,6 +56,16 @@ function resolveImageSrc(value: string | undefined) {
 	});
 }
 
+function resolveAssetId(value: unknown): string {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object') {
+		const id = (value as { id?: string | null }).id;
+		return typeof id === 'string' ? id : '';
+	}
+	return '';
+}
+
 function normalizeFilterToken(value: string) {
 	return (value || '').trim().toLowerCase();
 }
@@ -88,7 +104,7 @@ function getParentCategoryToken(category: Category): string | null {
 async function fetchCategories(): Promise<Category[]> {
 	try {
 		const url = directusItemsUrl('Categorie');
-		url.searchParams.set('fields', 'id,titolo_categoria,descrizione_categoria,parent_categoria,status,sort');
+		url.searchParams.set('fields', '*');
 		url.searchParams.set('filter[status][_eq]', 'published');
 		url.searchParams.set('sort', 'sort,titolo_categoria');
 		const response = await directusFetch(url);
@@ -158,15 +174,22 @@ const categories = await fetchCategories();
 const products = await fetchProducts();
 const productSlugMap = buildProductSlugMap(products);
 
-const categoryTreeMap = new Map<string, { token: string; slug: string; parentToken: string | null }>();
+const categoryTreeMap = new Map<string, { token: string; slug: string; parentToken: string | null; title: string; description: string; imageSrc: string }>();
 for (const category of categories) {
 	const token = resolveToken(category?.id);
 	const label = category.titolo_categoria?.trim() || '';
 	if (!token || !label) continue;
+	const imageField =
+		resolveAssetId(category.immagine_categoria) ||
+		resolveAssetId(category.immagine) ||
+		resolveAssetId(category.image);
 	categoryTreeMap.set(token, {
 		token,
 		slug: slugifyLabel(label) || token,
 		parentToken: getParentCategoryToken(category),
+		title: label,
+		description: category.descrizione_categoria?.trim() || '',
+		imageSrc: resolveImageSrc(imageField),
 	});
 }
 
@@ -174,6 +197,43 @@ const parentByCategory = new Map<string, string>();
 for (const node of categoryTreeMap.values()) {
 	if (node.parentToken) parentByCategory.set(node.token, node.parentToken);
 }
+
+const selectedCategoryNode = Array.from(categoryTreeMap.values()).find((node) => node.slug === filterCategorySlug) || null;
+const breadcrumbCategoryItems = [] as { name: string; href?: string }[];
+
+if (selectedCategoryNode) {
+	const chain = [] as { title: string; slug: string }[];
+	let currentToken: string | null = selectedCategoryNode.token;
+	const visited = new Set<string>();
+
+	while (currentToken && !visited.has(currentToken)) {
+		visited.add(currentToken);
+		const node = categoryTreeMap.get(currentToken);
+		if (!node) break;
+		chain.unshift({ title: node.title, slug: node.slug });
+		currentToken = node.parentToken;
+	}
+
+	breadcrumbCategoryItems.push(
+		...chain.map((entry, index) => ({
+			name: entry.title,
+			href: index < chain.length - 1 ? `/prodotti/categoria/${encodeURIComponent(entry.slug)}` : undefined,
+		}))
+	);
+}
+
+const subcategoryCards = selectedCategoryNode
+	? Array.from(categoryTreeMap.values())
+			.filter((node) => node.parentToken === selectedCategoryNode.token)
+			.map((node) => ({
+				title: node.title,
+				description: node.description,
+				href: `/prodotti/categoria/${encodeURIComponent(node.slug)}`,
+				imageSrc: CATEGORY_CARD_IMAGE || node.imageSrc,
+			}))
+	: [];
+
+const hasSubcategories = subcategoryCards.length > 0;
 
 const productsData = products
 	.map((product) => {
@@ -199,7 +259,7 @@ const productsData = products
 		return {
 			title: getProductTitle(product) || 'Prodotto',
 			href: `/prodotti/${slug}`,
-			imageSrc: resolveImageSrc(product.foto_prodotto),
+			imageSrc: PRODUCT_CARD_IMAGE,
 			categorySlugs: Array.from(categorySlugs),
 			tags: extractProductTags(product),
 			searchText: [
@@ -224,57 +284,69 @@ for (const product of productsData) {
 const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries()));
 ---
 
-{productsData.length > 0 && (
 	<section class="products_block" data-aos="fade-up" data-aos-duration="1500">
 		<div class="products_block_inner">
 			<Breadcrumbs
 				items={[
-					{ name: 'Home', href: '/' },
 					{ name: 'Prodotti', href: '/prodotti' },
-					{ name: selectedCategoryLabel },
+					...(breadcrumbCategoryItems.length > 0 ? breadcrumbCategoryItems : [{ name: selectedCategoryLabel }]),
 				]}
-				backHref="/prodotti"
-				backLabel="Torna ai prodotti"
+				showGlobalSearch={true}
+				searchAction="/prodotti"
+				searchPlaceholder="Cerca in tutti i prodotti"
 			/>
 
-			{titolo && <h2 class="products_block_title">{titolo}</h2>}
-
-			<form class="products_search" data-products-search-form role="search">
-				<input type="search" class="products_search_input" data-products-search placeholder="Cerca tra i prodotti della categoria" aria-label="Cerca prodotti" />
-				<button class="products_search_button" type="submit">Cerca</button>
-			</form>
-
-			<div class="products_selected_filters">
-				<p class="products_selected_category_value">{selectedCategoryLabel}</p>
+		<div class="products_selected_filters">
+			{!hasSubcategories && productsData.length > 0 && (
 				<div class="products_category_tags" data-category-tag-wrap>
 					<div class="products_tag_pills" data-category-tag-pills-selected></div>
 				</div>
-			</div>
+			)}
+		</div>
 
-			<div class="products_results_head">
-				<p class="products_results_count" data-results-count>{productsData.length} prodotti</p>
-				<button class="products_clear_filters" type="button" data-clear-filters>Reset filtri</button>
-			</div>
-
-			<div class="products_grid">
-				{productsData.map((entry) => (
-					<a class="products_card" href={entry.href} data-tags={entry.tags.map((tag) => tag.slug).join(',')} data-search={entry.searchText}>
+		{hasSubcategories ? (
+			<div class="products_subcategories_grid">
+				{subcategoryCards.map((entry) => (
+					<a class="products_subcategory_card" href={entry.href}>
 						{entry.imageSrc && (
-							<div class="products_card_media">
+							<div class="products_subcategory_media">
 								<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
 							</div>
 						)}
-						<h3 class="products_card_title">{entry.title}</h3>
+						<h3 class="products_subcategory_title">{entry.title}</h3>
+						{entry.description && <p class="products_subcategory_description">{entry.description}</p>}
 					</a>
 				))}
 			</div>
+		) : productsData.length > 0 ? (
+			<>
+				<div class="products_results_head">
+					<p class="products_results_count" data-results-count>{productsData.length} prodotti</p>
+					<button class="products_clear_filters" type="button" data-clear-filters>Reset filtri</button>
+				</div>
 
-			<p class="products_empty">Nessun prodotto disponibile con i filtri selezionati.</p>
-		</div>
-	</section>
-)}
+				<div class="products_grid">
+					{productsData.map((entry) => (
+						<a class="products_card" href={entry.href} data-tags={entry.tags.map((tag) => tag.slug).join(',')} data-search={entry.searchText}>
+							{entry.imageSrc && (
+								<div class="products_card_media">
+									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+								</div>
+							)}
+							<h3 class="products_card_title">{entry.title}</h3>
+						</a>
+					))}
+				</div>
 
-<script is:inline define:vars={{ sidebarTagEntriesJson: JSON.parse(sidebarTagEntriesJson) }}>
+				<p class="products_empty">Nessun prodotto disponibile con i filtri selezionati.</p>
+			</>
+		) : (
+			<p class="products_empty_static">Nessun prodotto disponibile in questa categoria.</p>
+		)}
+	</div>
+</section>
+
+{!hasSubcategories && productsData.length > 0 && <script is:inline define:vars={{ sidebarTagEntriesJson: JSON.parse(sidebarTagEntriesJson) }}>
 	(() => {
 		const tagLabelMap = new Map(sidebarTagEntriesJson);
 		const splitValues = (value) =>
@@ -289,11 +361,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		const clearButton = document.querySelector('[data-clear-filters]');
 		const selectedCategoryPillsContainer = document.querySelector('[data-category-tag-pills-selected]');
 		const selectedCategoryTagWrap = document.querySelector('[data-category-tag-wrap]');
-		const searchForm = document.querySelector('[data-products-search-form]');
-		const searchInput = document.querySelector('[data-products-search]');
-		const selectedTags = new Set();
-		let searchTerm = '';
-		let activeSearchTerm = '';
+		let selectedTag = '';
 
 		const createTagPillButton = (tag, label) => {
 			const button = document.createElement('button');
@@ -301,14 +369,10 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 			button.className = 'products_tag_pill';
 			button.textContent = label;
 			button.setAttribute('data-tag-pill', tag);
-			button.setAttribute('aria-pressed', selectedTags.has(tag) ? 'true' : 'false');
-			if (selectedTags.has(tag)) button.classList.add('is-active');
+			button.setAttribute('aria-pressed', selectedTag === tag ? 'true' : 'false');
+			if (selectedTag === tag) button.classList.add('is-active');
 			button.addEventListener('click', () => {
-				if (selectedTags.has(tag)) {
-					selectedTags.delete(tag);
-				} else {
-					selectedTags.add(tag);
-				}
+				selectedTag = selectedTag === tag ? '' : tag;
 				applyFilters();
 			});
 			return button;
@@ -317,19 +381,13 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		const renderTagPills = () => {
 			if (!(selectedCategoryPillsContainer instanceof HTMLElement) || !(selectedCategoryTagWrap instanceof HTMLElement)) return;
 			selectedCategoryPillsContainer.innerHTML = '';
-			if (activeSearchTerm) {
-				selectedCategoryTagWrap.hidden = true;
-				return;
-			}
 
 			const availableTags = new Set();
 			cards.forEach((card) => {
 				splitValues(card.getAttribute('data-tags')).forEach((tag) => availableTags.add(tag));
 			});
 
-			selectedTags.forEach((tag) => {
-				if (!availableTags.has(tag)) selectedTags.delete(tag);
-			});
+			if (selectedTag && !availableTags.has(selectedTag)) selectedTag = '';
 
 			if (availableTags.size === 0) {
 				selectedCategoryTagWrap.hidden = true;
@@ -337,6 +395,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 			}
 
 			selectedCategoryTagWrap.hidden = false;
+			selectedCategoryPillsContainer.appendChild(createTagPillButton('', 'Tutti i prodotti'));
 			Array.from(availableTags)
 				.sort((a, b) => (tagLabelMap.get(a) || a).localeCompare(tagLabelMap.get(b) || b, 'it', { sensitivity: 'base' }))
 				.forEach((tag) => {
@@ -345,7 +404,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		};
 
 		const updateClearButton = () => {
-			const hasFilters = selectedTags.size > 0 || Boolean(activeSearchTerm);
+			const hasFilters = Boolean(selectedTag);
 			if (clearButton instanceof HTMLElement) clearButton.style.visibility = hasFilters ? 'visible' : 'hidden';
 		};
 
@@ -354,10 +413,8 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 			let visibleCount = 0;
 			cards.forEach((card) => {
 				const tags = splitValues(card.getAttribute('data-tags'));
-				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
-				const tagsMatch = selectedTags.size === 0 || Array.from(selectedTags).every((tag) => tags.includes(tag));
-				const searchMatch = !activeSearchTerm || searchable.includes(activeSearchTerm);
-				const match = tagsMatch && searchMatch;
+				const tagsMatch = !selectedTag || tags.includes(selectedTag);
+				const match = tagsMatch;
 				card.style.display = match ? '' : 'none';
 				if (match) visibleCount += 1;
 			});
@@ -369,31 +426,14 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 
 		if (clearButton instanceof HTMLElement) {
 			clearButton.addEventListener('click', () => {
-				selectedTags.clear();
-				searchTerm = '';
-				activeSearchTerm = '';
-				if (searchInput instanceof HTMLInputElement) searchInput.value = '';
-				applyFilters();
-			});
-		}
-
-		if (searchInput instanceof HTMLInputElement) {
-			searchInput.addEventListener('input', () => {
-				searchTerm = searchInput.value.trim().toLowerCase();
-			});
-		}
-
-		if (searchForm instanceof HTMLFormElement) {
-			searchForm.addEventListener('submit', (event) => {
-				event.preventDefault();
-				activeSearchTerm = searchTerm;
+				selectedTag = '';
 				applyFilters();
 			});
 		}
 
 		applyFilters();
 	})();
-</script>
+</script>}
 
 <style>
 	.products_block {
@@ -405,53 +445,6 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		margin: 0 auto;
 	}
 
-	.products_block_title {
-		margin: 0 0 26px;
-		font-size: clamp(28px, 3.5vw, 40px);
-		color: var(--nero);
-		border-bottom: 4px solid #ff4000;
-		padding-bottom: 20px;
-	}
-
-	.products_search {
-		margin-bottom: 20px;
-		display: flex;
-		gap: 10px;
-		align-items: center;
-	}
-
-	.products_search_input {
-		width: 100%;
-		max-width: 520px;
-		height: 52px;
-		border: 1px solid rgba(0, 0, 0, 0.18);
-		border-radius: 999px;
-		padding: 0 20px;
-		font: inherit;
-		font-size: 16px;
-		background: #fff;
-		color: var(--nero);
-	}
-
-	.products_search_input:focus {
-		outline: none;
-		border-color: var(--blu);
-		box-shadow: 0 0 0 3px rgba(255, 64, 0, 0.18);
-	}
-
-	.products_search_button {
-		appearance: none;
-		border: 0;
-		border-radius: 999px;
-		padding: 0 24px;
-		height: 52px;
-		font: inherit;
-		font-weight: 700;
-		background: var(--blu);
-		color: #fff;
-		cursor: pointer;
-	}
-
 	.products_selected_filters {
 		display: flex;
 		flex-direction: column;
@@ -461,14 +454,6 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		background: #f7f7f7;
 		border: 1px solid rgba(0, 0, 0, 0.09);
 		margin-bottom: 18px;
-	}
-
-	.products_selected_category_value {
-		margin: 0;
-		font-size: 22px;
-		line-height: 1.2;
-		font-weight: 700;
-		color: var(--nero);
 	}
 
 	.products_tag_pills {
@@ -528,6 +513,13 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		gap: 20px;
 	}
 
+	.products_subcategories_grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 20px;
+	}
+
+	.products_subcategory_card,
 	.products_card {
 		display: flex;
 		flex-direction: column;
@@ -541,12 +533,14 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		transition: transform 180ms ease, box-shadow 180ms ease;
 	}
 
+	a.products_subcategory_card:hover,
 	a.products_card:hover {
 		transform: translateY(-3px);
 		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
 		color: #ff4000;
 	}
 
+	.products_subcategory_media,
 	.products_card_media {
 		overflow: hidden;
 		border-radius: 10px;
@@ -554,16 +548,26 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		background: #f8f8f8;
 	}
 
+	.products_subcategory_media img,
 	.products_card_media img {
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
 	}
 
+	.products_subcategory_title,
 	.products_card_title {
 		margin: 0;
 		font-size: 24px;
 		line-height: 1.15;
+		text-align: center;
+	}
+
+	.products_subcategory_description {
+		margin: 0;
+		font-size: 16px;
+		line-height: 1.45;
+		color: rgba(0, 0, 0, 0.75);
 		text-align: center;
 	}
 
@@ -574,18 +578,25 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		color: rgba(0, 0, 0, 0.68);
 	}
 
+	.products_empty_static {
+		margin: 4px 0 0;
+		font-size: 15px;
+		color: rgba(0, 0, 0, 0.68);
+	}
+
 	@media (max-width: 1080px) {
+		.products_subcategories_grid,
 		.products_grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 	}
 
 	@media (max-width: 760px) {
+		.products_subcategories_grid,
 		.products_grid {
 			grid-template-columns: 1fr;
 		}
 
-		.products_search,
 		.products_results_head {
 			flex-direction: column;
 			align-items: stretch;

@@ -4,6 +4,9 @@ import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/direct
 import { buildProductSlugMap, getProductTitle } from '../lib/products';
 import { slugifyLabel } from '../lib/slug';
 
+const CATEGORY_CARD_IMAGE = 'https://battistel.prometeo.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
+const PRODUCT_CARD_IMAGE = 'https://battistel.prometeo.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
+
 interface Category {
 	id?: number | string;
 	status?: string;
@@ -85,20 +88,18 @@ function getParentKey(category: Category): string {
 	return '';
 }
 
-async function fetchParentCategories(): Promise<Category[]> {
+async function fetchCategories(): Promise<Category[]> {
 	try {
 		const url = directusItemsUrl('Categorie');
 		url.searchParams.set('fields', '*');
 		url.searchParams.set('filter[status][_eq]', 'published');
-		url.searchParams.set('filter[parent_categoria][_null]', 'true');
 		url.searchParams.set('sort', 'sort,titolo_categoria');
 		const response = await directusFetch(url);
 		if (!response.ok) return [];
 		const payload = await response.json();
-		const categories = Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
-		return categories.filter((category) => !getParentKey(category));
+		return Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
 	} catch (error) {
-		console.error('Errore caricando le categorie padre prodotti:', error);
+		console.error('Errore caricando le categorie prodotti:', error);
 		return [];
 	}
 }
@@ -137,12 +138,15 @@ function extractProductTags(product: Product) {
 	return Array.from(new Map(tags.map((entry) => [entry.slug, entry.label])), ([slug, label]) => ({ slug, label }));
 }
 
-const categories = await fetchParentCategories();
+const categories = await fetchCategories();
 const products = await fetchProducts();
 const productSlugMap = buildProductSlugMap(products);
+const initialSearchTerm = Astro.url.searchParams.get('q')?.trim().toLowerCase() || '';
+
+const topLevelCategories = categories.filter((category) => !getParentKey(category));
 
 const usedSlugs = new Set<string>();
-const categoryCards = categories
+const categoryCards = topLevelCategories
 	.filter((category) => category?.id !== null && category?.id !== undefined)
 	.map((category) => {
 		const baseSlug = slugifyLabel(category.titolo_categoria) || String(category.id || '').trim();
@@ -159,7 +163,7 @@ const categoryCards = categories
 			title: category.titolo_categoria || 'Categoria',
 			description: category.descrizione_categoria || '',
 			href: `/prodotti/categoria/${encodeURIComponent(slug)}`,
-			imageSrc: resolveImageSrc(imageField),
+			imageSrc: CATEGORY_CARD_IMAGE || resolveImageSrc(imageField),
 		};
 	})
 	.filter(
@@ -185,7 +189,7 @@ const productsData = products
 		return {
 			title,
 			href: `/prodotti/${slug}`,
-			imageSrc: resolveImageSrc(product.foto_prodotto),
+			imageSrc: PRODUCT_CARD_IMAGE,
 			searchText: [title, ...categories, ...tags.map((tag) => tag.label)].join(' ').toLowerCase(),
 		};
 	})
@@ -194,20 +198,12 @@ const productsData = products
 
 <section class="products_overview" data-aos="fade-up" data-aos-duration="1500">
 	<div class="products_overview_inner">
-		<Breadcrumbs
-			items={[
-				{ name: 'Home', href: '/' },
-				{ name: 'Prodotti' },
-			]}
-			backHref="/"
-			backLabel="Torna alla home"
-		/>
-
 		<form class="products_search" data-products-overview-search-form role="search">
 			<input
 				type="search"
 				class="products_search_input"
 				data-products-overview-search
+				value={initialSearchTerm}
 				placeholder="Cerca per prodotto, categoria o tag"
 				aria-label="Cerca prodotti"
 			/>
@@ -256,7 +252,7 @@ const productsData = products
 	</div>
 </section>
 
-<script is:inline>
+<script is:inline define:vars={{ initialSearchTerm }}>
 	(() => {
 		const searchForm = document.querySelector('[data-products-overview-search-form]');
 		const searchInput = document.querySelector('[data-products-overview-search]');
@@ -266,8 +262,8 @@ const productsData = products
 		const countElement = document.querySelector('[data-products-overview-count]');
 		const emptyElement = document.querySelector('[data-products-overview-empty]');
 		const cards = Array.from(document.querySelectorAll('[data-products-overview-grid] .products_card'));
-		let searchTerm = '';
-		let activeSearchTerm = '';
+		let searchTerm = initialSearchTerm;
+		let activeSearchTerm = initialSearchTerm;
 
 		const applySearch = () => {
 			let visibleCount = 0;
@@ -328,10 +324,12 @@ const productsData = products
 		display: flex;
 		gap: 10px;
 		align-items: center;
+		justify-content: center;
+		width: 100%;
 	}
 
 	.products_search_input {
-		width: 100%;
+		width: min(100%, 520px);
 		max-width: 520px;
 		height: 52px;
 		border: 1px solid rgba(0, 0, 0, 0.18);

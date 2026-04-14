@@ -8,9 +8,23 @@ interface Props {
 	items: BreadcrumbItem[];
 	backHref?: string;
 	backLabel?: string;
+	showGlobalSearch?: boolean;
+	searchAction?: string;
+	searchPlaceholder?: string;
+	searchParamName?: string;
+	searchValue?: string;
 }
 
-const { items = [], backHref = '', backLabel = '' } = Astro.props as Props;
+const {
+	items = [],
+	backHref = '',
+	backLabel = '',
+	showGlobalSearch = false,
+	searchAction = '/prodotti',
+	searchPlaceholder = 'Cerca prodotti',
+	searchParamName = 'q',
+	searchValue = '',
+} = Astro.props as Props;
 const siteUrl = (import.meta.env.PUBLIC_SITE_URL || 'https://battistel.com').replace(/\/+$/, '');
 
 const jsonLd = {
@@ -28,9 +42,6 @@ const jsonLd = {
 {items.length > 0 && (
 	<>
 		<nav class="breadcrumbs" aria-label="Breadcrumb">
-			{backHref && backLabel && (
-				<a class="breadcrumbs_back" href={backHref}>{backLabel}</a>
-			)}
 			<ol class="breadcrumbs_list">
 				{items.map((item, index) => {
 					const isLast = index === items.length - 1;
@@ -41,6 +52,19 @@ const jsonLd = {
 					);
 				})}
 			</ol>
+			{showGlobalSearch && (
+				<form class="breadcrumbs_search" action={searchAction} method="get" role="search">
+					<input
+						type="search"
+						name={searchParamName}
+						class="breadcrumbs_search_input"
+						placeholder={searchPlaceholder}
+						value={searchValue}
+						aria-label={searchPlaceholder}
+					/>
+					<button class="breadcrumbs_search_button" type="submit">Cerca</button>
+				</form>
+			)}
 		</nav>
 		<script type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
 	</>
@@ -49,13 +73,14 @@ const jsonLd = {
 <style>
 	.breadcrumbs {
 		display: flex;
-		flex-direction: column;
-		gap: 12px;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
 		margin-bottom: 24px;
+		overflow-x: hidden;
 	}
 
 	.breadcrumbs_back {
-		align-self: flex-start;
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
@@ -72,14 +97,66 @@ const jsonLd = {
 	}
 
 	.breadcrumbs_list {
+		flex: 1 1 auto;
+		min-width: 0;
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
 		gap: 8px;
 		list-style: none;
 		padding: 0;
 		margin: 0;
 		color: rgba(0, 0, 0, 0.7);
-		font-size: 14px;
+		font-size: 18px;
+		font-weight: 400;
+		white-space: nowrap;
+		overflow-x: auto;
+	}
+
+	.breadcrumbs_search {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 10px;
+		width: min(100%, 520px);
+	}
+
+	.breadcrumbs_search_input {
+		width: min(100%, 520px);
+		max-width: 520px;
+		height: 52px;
+		border: 1px solid rgba(0, 0, 0, 0.18);
+		border-radius: 999px;
+		padding: 0 20px;
+		font: inherit;
+		font-size: 16px;
+		background: #fff;
+		color: var(--nero);
+	}
+
+	.breadcrumbs_search_input:focus {
+		outline: none;
+		border-color: var(--blu);
+		box-shadow: 0 0 0 3px rgba(255, 64, 0, 0.18);
+	}
+
+	.breadcrumbs_search_button {
+		appearance: none;
+		border: 0;
+		border-radius: 999px;
+		padding: 0 24px;
+		height: 52px;
+		font: inherit;
+		font-weight: 700;
+		background: var(--blu);
+		color: #fff;
+		cursor: pointer;
+		transition: transform 180ms ease, filter 180ms ease;
+	}
+
+	.breadcrumbs_search_button:hover {
+		filter: brightness(1.04);
+		transform: translateY(-1px);
 	}
 
 	.breadcrumbs_item {
@@ -100,12 +177,23 @@ const jsonLd = {
 
 	.breadcrumbs_item span[aria-current='page'] {
 		font-weight: 700;
-		color: var(--nero);
+		color: #ff4000;
 	}
 
 	@media (max-width: 760px) {
 		.breadcrumbs {
+			align-items: stretch;
+			flex-direction: column;
 			margin-bottom: 20px;
+		}
+
+		.breadcrumbs_search {
+			min-width: 0;
+			width: 100%;
+		}
+
+		.breadcrumbs_search_input {
+			width: 100%;
 		}
 	}
 </style>

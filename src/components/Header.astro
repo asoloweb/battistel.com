@@ -24,26 +24,29 @@ interface PageItem {
 
 interface Options {
 	logo_light?: string;
+	testo_header?: string;
 }
 
 let logoLightSrc = import.meta.env.PUBLIC_LOGO_LIGHT || '/favicon.svg';
+let headerText = '';
 const currentPath = Astro.url?.pathname ?? '/';
 
 let menuItems: MenuItem[] = [];
 
 try {
 	const optionsUrl = directusItemsUrl('options');
-	optionsUrl.searchParams.set('fields', 'logo_light');
+	optionsUrl.searchParams.set('fields', 'logo_light,testo_header');
 	const optionsResponse = await directusFetch(optionsUrl);
 	if (optionsResponse.ok) {
 		const optionsPayload = await optionsResponse.json();
 		const options =
 			optionsPayload?.data && Array.isArray(optionsPayload.data)
 				? optionsPayload.data[0]
-				: optionsPayload?.data;
+				: optionsPayload?.data as Options | undefined;
 		if (options?.logo_light) {
 			logoLightSrc = resolveImageSrc(options.logo_light);
 		}
+		headerText = options?.testo_header?.trim() || '';
 	}
 
 	const url = directusItemsUrl('Menus');
@@ -124,7 +127,10 @@ function isCurrentMenuItem(href: string) {
 	const base = Astro.url?.origin || 'http://localhost';
 	try {
 		const url = new URL(href, base);
-		return normalizePath(url.pathname) === normalizePath(currentPath);
+		const itemPath = normalizePath(url.pathname);
+		const activePath = normalizePath(currentPath);
+		if (itemPath === '/') return activePath === '/';
+		return activePath === itemPath || activePath.startsWith(`${itemPath}/`);
 	} catch {
 		return false;
 	}
@@ -140,6 +146,17 @@ function getItemTitle(item: MenuItem, index: number) {
 ---
 
 <header class="site-header" data-aos="fade-down" data-aos-duration="1000">
+	<div class="site-header-topbar">
+		<div class="site-header-topbar-inner">
+			{headerText && <div class="site-header-topbar-text" set:html={headerText}></div>}
+			<a class="site-header-topbar-link site-header-topbar-search" href="/prodotti" aria-label="Cerca prodotti">
+				<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+					<path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.44 1.41-1.42-4.43-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" fill="currentColor"></path>
+				</svg>
+				<span>Cerca prodotti</span>
+			</a>
+		</div>
+	</div>
 	<nav aria-label="Menu principale">
 		<div>
 			<a href="/">

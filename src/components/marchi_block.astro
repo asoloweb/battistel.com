@@ -62,7 +62,8 @@ const brands = await fetchBrands();
 	<section class="marchi_block" data-aos="fade-up" data-aos-duration="1200">
 		<div class="marchi_block_inner">
 			{titolo && <h2 class="marchi_block_title">{titolo}</h2>}
-			<div class="marchi_grid">
+			<div class="marchi_grid swiper" data-marchi-slider>
+				<div class="swiper-wrapper">
 				{brands.map((brand) => {
 					const imageSrc = resolveImageSrc(brand.logo_marchio);
 					const href = normalizeHref(brand.url_marchio);
@@ -70,7 +71,7 @@ const brands = await fetchBrands();
 
 					return (
 						<Tag
-							class="marchio_item"
+							class="marchio_item swiper-slide"
 							href={href || undefined}
 							target={href ? '_blank' : undefined}
 							rel={href ? 'noopener noreferrer' : undefined}
@@ -83,10 +84,48 @@ const brands = await fetchBrands();
 						</Tag>
 					);
 				})}
+				</div>
+				{brands.length > 1 && <div class="swiper-pagination"></div>}
 			</div>
 		</div>
 	</section>
 )}
+
+<script is:inline>
+	(() => {
+		const init = () => {
+			const slider = document.querySelector('[data-marchi-slider]');
+			if (!(slider instanceof HTMLElement) || slider.dataset.swiperInitialized === 'true' || !window.Swiper) return;
+
+			const slides = slider.querySelectorAll('.swiper-slide');
+			new window.Swiper(slider, {
+				loop: slides.length > 1,
+				speed: 500,
+				slidesPerView: 5,
+				spaceBetween: 18,
+				autoplay: slides.length > 1 ? { delay: 2400, disableOnInteraction: false } : false,
+				pagination: {
+					el: slider.querySelector('.swiper-pagination'),
+					clickable: true,
+				},
+				breakpoints: {
+					0: { slidesPerView: 2, spaceBetween: 14 },
+					640: { slidesPerView: 3, spaceBetween: 16 },
+					860: { slidesPerView: 4, spaceBetween: 18 },
+					1100: { slidesPerView: 5, spaceBetween: 18 },
+				},
+			});
+
+			slider.dataset.swiperInitialized = 'true';
+		};
+
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', init, { once: true });
+		} else {
+			init();
+		}
+	})();
+</script>
 
 <style>
 	.marchi_block {
@@ -107,13 +146,16 @@ const brands = await fetchBrands();
 	}
 
 	.marchi_grid {
-		display: grid;
-		grid-template-columns: repeat(5, minmax(0, 1fr));
-		gap: 18px;
+		padding-bottom: 34px;
+	}
+
+	.marchi_grid :global(.swiper-wrapper) {
+		min-height: 145px;
+		align-items: stretch;
 	}
 
 	.marchio_item {
-		height: 100px;
+		height: 120px;
 		background: #fff;
 		border-radius: 16px;
 		padding: 16px;
@@ -151,25 +193,22 @@ const brands = await fetchBrands();
 		text-align: center;
 	}
 
-	@media (max-width: 1100px) {
-		.marchi_grid {
-			grid-template-columns: repeat(4, minmax(0, 1fr));
-		}
+	.marchi_grid :global(.swiper-pagination) {
+		bottom: 0;
 	}
 
-	@media (max-width: 860px) {
-		.marchi_grid {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
+	.marchi_grid :global(.swiper-pagination-bullet) {
+		background: var(--blu);
+		opacity: 0.35;
+	}
+
+	.marchi_grid :global(.swiper-pagination-bullet-active) {
+		opacity: 1;
 	}
 
 	@media (max-width: 640px) {
-		.marchi_grid {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
 		.marchio_item {
-			height: 100px;
+			height: 120px;
 		}
 	}
 </style>

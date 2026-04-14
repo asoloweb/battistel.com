@@ -1,13 +1,21 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
+import ProductInquiryForm from '../../components/ProductInquiryForm.astro';
+import { DIRECTUS_URL, directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
 import { buildProductSlugMap, getProductTitle } from '../../lib/products';
 import { slugifyLabel } from '../../lib/slug';
 
+const DEFAULT_PRODUCT_IMAGE = 'https://battistel.prometeo.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
+
 type Category = {
-	id?: number;
+	id?: number | string;
 	titolo_categoria?: string;
+	parent_categoria?: unknown;
+	parent?: unknown;
+	parent_id?: unknown;
+	categoria_padre?: unknown;
+	categoria_padre_id?: unknown;
 };
 
 type CategoryRelation = {
@@ -52,6 +60,15 @@ type Product = {
 	Tag?: TagRelation[];
 };
 
+type ProductsPage = {
+	status?: string;
+	slug?: string;
+	title?: string;
+	Titolo?: string;
+	hide_page_header?: boolean;
+	featured_image?: string;
+};
+
 function resolveImageSrc(value: string | undefined) {
 	return directusAssetUrl(value, {
 		width: 1200,
@@ -61,19 +78,99 @@ function resolveImageSrc(value: string | undefined) {
 	});
 }
 
+async function fetchProductsPage(): Promise<ProductsPage | null> {
+	try {
+		const url = directusItemsUrl('pages');
+		url.searchParams.set('fields', 'title,Titolo,hide_page_header,featured_image');
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('filter[slug][_eq]', 'prodotti');
+		url.searchParams.set('limit', '1');
+		const response = await directusFetch(url);
+		if (!response.ok) return null;
+		const payload = await response.json();
+		const pages = Array.isArray(payload?.data) ? (payload.data as ProductsPage[]) : [];
+		return pages[0] ?? null;
+	} catch (error) {
+		console.error('Errore caricando la pagina prodotti:', error);
+		return null;
+	}
+}
+
+async function fetchProducts(): Promise<Product[]> {
+	try {
+		const url = directusItemsUrl('Prodotti');
+		url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Tag.Tags_id.*');
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('limit', '-1');
+		url.searchParams.set('sort', 'sort,codice_prodotto');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Product[]) : [];
+	} catch (error) {
+		console.error('Errore caricando i prodotti correlati:', error);
+		return [];
+	}
+
+}
+
 function getCategories(product: Product) {
 	if (!Array.isArray(product?.Categoria)) return [];
 	return product.Categoria
 		.map((entry) => {
 			const category = entry?.Categorie_id && typeof entry.Categorie_id === 'object' ? entry.Categorie_id : null;
-			if (!category || typeof category.id !== 'number') return null;
+			if (!category || (typeof category.id !== 'number' && typeof category.id !== 'string')) return null;
 			return {
 				id: category.id,
 				titolo: category.titolo_categoria || '',
 				slug: slugifyLabel(category.titolo_categoria) || String(category.id),
 			};
 		})
-		.filter((entry): entry is { id: number; titolo: string; slug: string } => Boolean(entry));
+		.filter((entry): entry is { id: number | string; titolo: string; slug: string } => Boolean(entry));
+}
+
+function resolveToken(value: unknown): string {
+	if (typeof value === 'number') return String(value);
+	if (typeof value === 'string') return value.trim();
+	if (typeof value === 'object' && value) {
+		const nestedId = (value as { id?: unknown }).id;
+		if (typeof nestedId === 'number') return String(nestedId);
+		if (typeof nestedId === 'string') return nestedId.trim();
+	}
+	return '';
+}
+
+function getParentCategoryToken(category: Category): string | null {
+	const candidates = [
+		category.parent_categoria,
+		category.parent,
+		category.parent_id,
+		category.categoria_padre,
+		category.categoria_padre_id,
+	] as unknown[];
+
+	for (const candidate of candidates) {
+		const token = resolveToken(candidate);
+		if (token) return token;
+	}
+
+	return null;
+}
+
+async function fetchCategories(): Promise<Category[]> {
+	try {
+		const url = directusItemsUrl('Categorie');
+		url.searchParams.set('fields', '*');
+		url.searchParams.set('filter[status][_eq]', 'published');
+		url.searchParams.set('sort', 'sort,titolo_categoria');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
+	} catch (error) {
+		console.error('Errore caricando le categorie prodotti:', error);
+		return [];
+	}
 }
 
 function getVariants(product: Product) {
@@ -136,40 +233,116 @@ export async function getStaticPaths() {
 }
 
 const { product } = Astro.props as { product: Product };
+const productsPage = await fetchProductsPage();
 const title = getProductTitle(product) || 'Prodotto';
-const imageSrc = resolveImageSrc(product?.foto_prodotto);
+const imageSrc = product?.foto_prodotto ? resolveImageSrc(product.foto_prodotto) : DEFAULT_PRODUCT_IMAGE;
+const pageHeaderImage = `${DIRECTUS_URL}/assets/491185c0-ede3-4ffd-b149-5872266922fa`;
+const allProducts = await fetchProducts();
+const allCategories = await fetchCategories();
 const categories = getCategories(product);
 const variants = getVariants(product);
 const tags = getTags(product);
 const packaging = splitCommaValues(product?.imballo);
-const primaryCategory = categories[0];
-const backHref = primaryCategory ? `/prodotti/categoria/${encodeURIComponent(primaryCategory.slug)}` : '/prodotti';
-const backLabel = primaryCategory?.titolo ? `Torna a ${primaryCategory.titolo}` : 'Torna ai prodotti';
+const categoryMap = new Map(
+	allCategories
+		.map((category) => {
+			const token = resolveToken(category.id);
+			const label = category.titolo_categoria?.trim() || '';
+			if (!token || !label) return null;
+			return [
+				token,
+				{
+					token,
+					title: label,
+					slug: slugifyLabel(label) || token,
+					parentToken: getParentCategoryToken(category),
+				},
+			] as const;
+		})
+		.filter((entry): entry is readonly [string, { token: string; title: string; slug: string; parentToken: string | null }] => Boolean(entry))
+);
+
+const primaryCategory = categories[0] || null;
+const breadcrumbCategoryItems = [] as { name: string; href?: string }[];
+
+if (primaryCategory) {
+	const chain = [] as { title: string; slug: string }[];
+	let currentToken: string | null = resolveToken(primaryCategory.id);
+	const visited = new Set<string>();
+
+	while (currentToken && !visited.has(currentToken)) {
+		visited.add(currentToken);
+		const node = categoryMap.get(currentToken);
+		if (!node) break;
+		chain.unshift({ title: node.title, slug: node.slug });
+		currentToken = node.parentToken;
+	}
+
+	breadcrumbCategoryItems.push(
+		...chain.map((entry) => ({
+			name: entry.title,
+			href: `/prodotti/categoria/${encodeURIComponent(entry.slug)}`,
+		}))
+	);
+}
+
+const backCategory = breadcrumbCategoryItems[breadcrumbCategoryItems.length - 1];
+const backHref = backCategory?.href || '/prodotti';
+const backLabel = backCategory?.name ? `Torna a ${backCategory.name}` : 'Torna ai prodotti';
+const relatedSlugMap = buildProductSlugMap(allProducts);
+const relatedSeed = typeof product.id === 'number' ? product.id : 0;
+const relatedProducts = (primaryCategory
+	? allProducts
+			.filter((entry) => entry.id !== product.id)
+			.map((entry) => ({ product: entry, categories: getCategories(entry) }))
+			.filter((entry) => entry.categories.some((category) => String(category.id) === String(primaryCategory.id)))
+			.sort((a, b) => {
+				const aId = typeof a.product.id === 'number' ? a.product.id : 0;
+				const bId = typeof b.product.id === 'number' ? b.product.id : 0;
+				const aScore = (aId * 37 + relatedSeed * 17) % 997;
+				const bScore = (bId * 37 + relatedSeed * 17) % 997;
+				if (aScore !== bScore) return aScore - bScore;
+				return aId - bId;
+			})
+			.slice(0, 3)
+			.map(({ product: related }) => ({
+				title: getProductTitle(related) || 'Prodotto',
+				href: `/prodotti/${relatedSlugMap.get(related.id || 0) || String(related.id || '')}`,
+				imageSrc: related?.foto_prodotto ? resolveImageSrc(related.foto_prodotto) : DEFAULT_PRODUCT_IMAGE,
+			}))
+	: []);
 ---
 
 <BaseLayout title={title}>
+	<div
+		class="page_header"
+		style={pageHeaderImage ? `background-image: url('${pageHeaderImage}')` : undefined}
+	>
+		<div class="page_header_inner">
+			<h1 data-aos="fade-up" data-aos-duration="1500">{title}</h1>
+		</div>
+	</div>
+
 	<section class="product_detail">
 		<div class="product_detail_inner">
 			<Breadcrumbs
 				items={[
-					{ name: 'Home', href: '/' },
 					{ name: 'Prodotti', href: '/prodotti' },
-					...(primaryCategory ? [{ name: primaryCategory.titolo, href: backHref }] : []),
+					...breadcrumbCategoryItems,
 					{ name: title },
 				]}
-				backHref={backHref}
-				backLabel={backLabel}
+				showGlobalSearch={true}
+				searchAction="/prodotti"
+				searchPlaceholder="Cerca in tutti i prodotti"
 			/>
 
 			<div class="product_hero">
 				<div class="product_hero_text">
-					<h1 class="product_title">{title}</h1>
-					{product?.codice_prodotto && (
-						<p class="product_code">Codice: {product.codice_prodotto}</p>
-					)}
+					{product?.codice_prodotto && <p class="product_code">Codice: {product.codice_prodotto}</p>}
 					{product?.descrizione_breve && (
 						<p class="product_short">{product.descrizione_breve}</p>
 					)}
+					<h2 class="product_title">{title}</h2>
 					{product?.descrizione_estesa && (
 						<p class="product_long">{product.descrizione_estesa}</p>
 					)}
@@ -234,14 +407,40 @@ const backLabel = primaryCategory?.titolo ? `Torna a ${primaryCategory.titolo}` 
 					</div>
 				</div>
 			)}
+
+			<ProductInquiryForm
+				productTitle={title}
+				productCode={product?.codice_prodotto || ''}
+				categoryName={primaryCategory?.titolo || ''}
+			/>
+
+			{relatedProducts.length > 0 && primaryCategory && (
+				<section class="product_related">
+					<div class="product_related_head">
+						<h2 class="product_related_title">Prodotti che potrebbero interessarti</h2>
+					</div>
+
+					<div class="product_related_grid">
+						{relatedProducts.map((entry) => (
+							<a class="product_related_card" href={entry.href}>
+								<div class="product_related_media">
+									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+								</div>
+								<h3 class="product_related_card_title">{entry.title}</h3>
+							</a>
+						))}
+					</div>
+
+					<a class="product_related_link" href={backHref}>Vedi tutti</a>
+				</section>
+			)}
 		</div>
 	</section>
 </BaseLayout>
 
 <style>
 	.product_detail {
-		padding: 40px 20px 70px;
-		padding-top: 165px;
+		padding: 24px 20px 70px;
 	}
 
 	.product_detail_inner {
@@ -279,13 +478,6 @@ const backLabel = primaryCategory?.titolo ? `Torna a ${primaryCategory.titolo}` 
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
-	}
-
-	.product_title {
-		margin: 0;
-		font-size: clamp(32px, 4vw, 48px);
-		line-height: 1.05;
-		font-weight: 700;
 	}
 
 	.product_code {
@@ -364,6 +556,74 @@ const backLabel = primaryCategory?.titolo ? `Torna a ${primaryCategory.titolo}` 
 		color: #000;
 	}
 
+	.product_related {
+		margin-top: 40px;
+	}
+
+	.product_related_head {
+		margin-bottom: 20px;
+	}
+
+	.product_related_title {
+		margin: 0;
+		font-size: 24px;
+		font-weight: 700;
+		color: #000;
+	}
+
+	.product_related_link {
+		display: flex;
+		justify-content: center;
+		margin-top: 20px;
+		color: #ff4000;
+		font-weight: 700;
+		text-decoration: none;
+	}
+
+	.product_related_grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 20px;
+	}
+
+	.product_related_card {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		padding: 24px;
+		background: #fff;
+		border: 1px solid rgba(0, 0, 0, 0.09);
+		border-radius: 14px;
+		color: #000;
+		text-decoration: none;
+		transition: transform 180ms ease, box-shadow 180ms ease;
+	}
+
+	.product_related_card:hover {
+		transform: translateY(-3px);
+		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+	}
+
+	.product_related_media {
+		overflow: hidden;
+		border-radius: 10px;
+		aspect-ratio: 4 / 3;
+		background: #f8f8f8;
+	}
+
+	.product_related_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
+	.product_related_card_title {
+		margin: 0;
+		font-size: 22px;
+		line-height: 1.15;
+		text-align: center;
+	}
+
 	.product_variants_title {
 		margin: 0 0 20px;
 		font-size: 24px;
@@ -406,12 +666,20 @@ const backLabel = primaryCategory?.titolo ? `Torna a ${primaryCategory.titolo}` 
 			padding: 36px;
 		}
 
+		.product_related_grid {
+			grid-template-columns: 1fr;
+		}
+
 		.product_hero_media img {
 			max-height: 320px;
 		}
 	}
 
 	@media (max-width: 640px) {
+		.product_related_grid {
+			grid-template-columns: 1fr;
+		}
+
 		.product_hero {
 			padding: 28px;
 		}

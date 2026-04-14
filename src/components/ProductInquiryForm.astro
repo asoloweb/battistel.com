@@ -1,0 +1,359 @@
+---
+import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
+
+interface Props {
+	productTitle: string;
+	productCode?: string;
+	categoryName?: string;
+}
+
+const { productTitle, productCode = '', categoryName = '' } = Astro.props as Props;
+
+const flowTriggerId = import.meta.env.PUBLIC_DIRECTUS_FLOW_TRIGGER_ID;
+const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
+	? import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
+	: flowTriggerId
+	? `${DIRECTUS_URL}/flows/trigger/${flowTriggerId}`
+	: '';
+
+let logoDarkSrc = import.meta.env.PUBLIC_LOGO_DARK || import.meta.env.PUBLIC_LOGO_LIGHT || '/favicon.svg';
+
+try {
+	const optionsUrl = directusItemsUrl('options');
+	optionsUrl.searchParams.set('fields', 'logo_dark,logo_light');
+	const optionsResponse = await directusFetch(optionsUrl);
+	if (optionsResponse.ok) {
+		const optionsPayload = await optionsResponse.json();
+		const options =
+			optionsPayload?.data && Array.isArray(optionsPayload.data)
+				? optionsPayload.data[0]
+				: optionsPayload?.data;
+		const logoValue = options?.logo_dark || options?.logo_light;
+		if (typeof logoValue === 'string' && logoValue) {
+			logoDarkSrc = `${DIRECTUS_URL}/assets/${logoValue}`;
+		}
+	}
+} catch (error) {
+	console.error('Errore caricando il logo per il form prodotto:', error);
+}
+---
+
+<section class="product_inquiry" aria-labelledby="product-inquiry-title">
+	<div class="product_inquiry_content">
+		<div class="product_inquiry_intro">
+			<img class="product_inquiry_logo" src={logoDarkSrc} alt="Battistel" loading="lazy" />
+			<div class="product_inquiry_kicker">Richiesta informazioni</div>
+			<h2 id="product-inquiry-title" class="product_inquiry_title">Hai bisogno di supporto su questo prodotto?</h2>
+			<p class="product_inquiry_text">
+				Compila il form per ricevere informazioni commerciali o tecniche su <strong>{productTitle}</strong>.
+				Ti ricontatteremo nel piu breve tempo possibile.
+			</p>
+		</div>
+
+		<div class="product_inquiry_form_wrap">
+			<form class="product_inquiry_form" method="post" data-webhook-url={webhookUrl}>
+				<input type="hidden" name="product_title" value={productTitle} />
+				<input type="hidden" name="product_code" value={productCode} />
+				<input type="hidden" name="category_name" value={categoryName} />
+
+				<label class="product_inquiry_field">
+					<span>Ragione sociale</span>
+					<input name="ragione_sociale" type="text" autocomplete="organization" required />
+				</label>
+
+				<div class="product_inquiry_grid">
+					<label class="product_inquiry_field">
+						<span>Referente</span>
+						<input name="referente" type="text" autocomplete="name" required />
+					</label>
+
+					<label class="product_inquiry_field">
+						<span>Email</span>
+						<input name="email" type="email" autocomplete="email" required />
+					</label>
+				</div>
+
+				<label class="product_inquiry_field">
+					<span>Telefono</span>
+					<input name="telefono" type="tel" autocomplete="tel" />
+				</label>
+
+				<label class="product_inquiry_field">
+					<span>Messaggio</span>
+					<textarea name="messaggio" rows={6} required placeholder={`Vorrei maggiori informazioni su ${productTitle}`}></textarea>
+				</label>
+
+				<label class="product_inquiry_privacy">
+					<input name="privacy" type="checkbox" required />
+					<span>
+						Accetto la <a href="/privacy-policy">privacy policy</a>
+					</span>
+				</label>
+
+				<button class="product_inquiry_submit" type="submit">Invia richiesta</button>
+				<p class="product_inquiry_status" role="status" aria-live="polite"></p>
+			</form>
+		</div>
+	</div>
+</section>
+
+<script type="module">
+	const form = document.querySelector('.product_inquiry_form');
+	if (form instanceof HTMLFormElement) {
+		const statusEl = form.querySelector('.product_inquiry_status');
+		const submitButton = form.querySelector('.product_inquiry_submit');
+		const webhookUrl = form.dataset.webhookUrl;
+
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			if (!webhookUrl) {
+				if (statusEl) {
+					statusEl.textContent =
+						'Webhook non configurato. Imposta PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE o PUBLIC_DIRECTUS_FLOW_TRIGGER_ID.';
+					statusEl.dataset.state = 'error';
+				}
+				return;
+			}
+
+			if (submitButton instanceof HTMLButtonElement) submitButton.disabled = true;
+			if (statusEl) {
+				statusEl.textContent = 'Invio in corso...';
+				statusEl.dataset.state = 'loading';
+			}
+
+			try {
+				const formData = new FormData(form);
+				const ragioneSociale = String(formData.get('ragione_sociale') || '').trim();
+				const referente = String(formData.get('referente') || '').trim();
+				const email = String(formData.get('email') || '').trim();
+				const telefono = String(formData.get('telefono') || '').trim();
+				const messaggio = String(formData.get('messaggio') || '').trim();
+				const productTitle = String(formData.get('product_title') || '').trim();
+				const productCode = String(formData.get('product_code') || '').trim();
+				const categoryName = String(formData.get('category_name') || '').trim();
+
+				const contattoLines = [
+					'Tipo richiesta: prodotto',
+					`Prodotto: ${productTitle}`,
+					`Codice prodotto: ${productCode || '-'}`,
+					`Categoria: ${categoryName || '-'}`,
+					`Ragione sociale: ${ragioneSociale}`,
+					`Referente: ${referente}`,
+					`Email: ${email}`,
+					`Telefono: ${telefono || '-'}`,
+					`Messaggio: ${messaggio}`,
+				];
+
+				const payload = {
+					tipo_richiesta: 'prodotto',
+					contatto: contattoLines.join('\n'),
+					product_title: productTitle,
+					product_code: productCode,
+					category_name: categoryName,
+					ragione_sociale: ragioneSociale,
+					referente,
+					email,
+					telefono,
+					messaggio,
+				};
+
+				const response = await fetch(webhookUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						...payload,
+						data: payload,
+						payload,
+						body: payload,
+					}),
+				});
+
+				if (!response.ok) throw new Error(`Webhook error: ${response.status}`);
+
+				form.reset();
+				if (statusEl) {
+					statusEl.textContent = 'Richiesta inviata con successo.';
+					statusEl.dataset.state = 'success';
+				}
+			} catch (error) {
+				console.error('Errore invio richiesta prodotto:', error);
+				if (statusEl) {
+					statusEl.textContent = "Errore durante l'invio. Riprova piu tardi.";
+					statusEl.dataset.state = 'error';
+				}
+			} finally {
+				if (submitButton instanceof HTMLButtonElement) submitButton.disabled = false;
+			}
+		});
+	}
+</script>
+
+<style>
+	.product_inquiry {
+		margin-top: 40px;
+	}
+
+	.product_inquiry_content {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		background: #fff;
+		border-radius: 28px;
+		overflow: hidden;
+		box-shadow: 0 18px 38px rgba(0, 0, 0, 0.12);
+	}
+
+	.product_inquiry_intro {
+		padding: 50px;
+		background: linear-gradient(135deg, #0c2f66 0%, #184b99 100%);
+		color: #fff;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 18px;
+	}
+
+	.product_inquiry_logo {
+		width: auto;
+		height: 80px;
+		max-width: 220px;
+		object-fit: contain;
+	}
+
+	.product_inquiry_kicker {
+		font-size: 14px;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: rgba(255, 255, 255, 0.82);
+	}
+
+	.product_inquiry_title {
+		margin: 0;
+		font-size: clamp(30px, 3.4vw, 44px);
+		line-height: 1.05;
+	}
+
+	.product_inquiry_text {
+		margin: 0;
+		font-size: 19px;
+		line-height: 1.6;
+		color: rgba(255, 255, 255, 0.92);
+	}
+
+	.product_inquiry_form_wrap {
+		padding: 40px;
+		color: #000;
+	}
+
+	.product_inquiry_form {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.product_inquiry_grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 14px;
+	}
+
+	.product_inquiry_field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		font-size: 14px;
+	}
+
+	.product_inquiry_field input,
+	.product_inquiry_field textarea {
+		border: 1px solid #d9d9d9;
+		border-radius: 12px;
+		padding: 12px 14px;
+		font: inherit;
+	}
+
+	.product_inquiry_field textarea {
+		resize: vertical;
+		min-height: 140px;
+	}
+
+	.product_inquiry_privacy {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-top: 4px;
+		font-size: 14px;
+	}
+
+	.product_inquiry_privacy input {
+		width: 18px;
+		height: 18px;
+	}
+
+	.product_inquiry_privacy a {
+		color: var(--blu);
+		text-decoration: underline;
+	}
+
+	.product_inquiry_submit {
+		margin-top: 6px;
+		border: 0;
+		border-radius: 999px;
+		padding: 12px 18px;
+		background: var(--blu);
+		color: var(--bianco);
+		font-family: var(--font-heading);
+		font-size: 16px;
+		font-weight: 700;
+		cursor: pointer;
+		transition: transform 180ms ease, opacity 180ms ease;
+	}
+
+	.product_inquiry_submit:hover {
+		transform: translateY(-2px);
+		opacity: 0.95;
+	}
+
+	.product_inquiry_submit:disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
+		transform: none;
+	}
+
+	.product_inquiry_status {
+		margin: 6px 2px 0;
+		font-size: 14px;
+		min-height: 20px;
+	}
+
+	.product_inquiry_status[data-state='success'] {
+		color: #1c7c3a;
+	}
+
+	.product_inquiry_status[data-state='error'] {
+		color: #b42318;
+	}
+
+	.product_inquiry_status[data-state='loading'] {
+		color: #555;
+	}
+
+	@media (max-width: 900px) {
+		.product_inquiry_content,
+		.product_inquiry_grid {
+			grid-template-columns: 1fr;
+		}
+
+		.product_inquiry_intro,
+		.product_inquiry_form_wrap {
+			padding: 32px;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.product_inquiry_intro,
+		.product_inquiry_form_wrap {
+			padding: 24px;
+		}
+	}
+</style>

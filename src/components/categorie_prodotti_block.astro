@@ -2,6 +2,8 @@
 import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
 import { slugifyLabel } from '../lib/slug';
 
+const CATEGORY_CARD_IMAGE = 'https://battistel.prometeo.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
+
 interface Category {
 	id?: number | string;
 	status?: string;
@@ -114,7 +116,7 @@ const cards = categories
 			title: category.titolo_categoria || 'Categoria',
 			description: category.descrizione_categoria || '',
 			href: `/prodotti/categoria/${encodeURIComponent(slug)}`,
-			imageSrc: resolveImageSrc(imageField),
+			imageSrc: CATEGORY_CARD_IMAGE || resolveImageSrc(imageField),
 		};
 	})
 	.filter(
