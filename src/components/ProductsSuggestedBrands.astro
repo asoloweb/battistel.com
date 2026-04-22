@@ -1,32 +1,49 @@
 ---
-import { directusFetch, directusItemsUrl } from '../lib/directus';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
 
-type Options = {
-	marchi_suggeriti?: string;
+type Brand = {
+	id?: number;
+	nome_marchio?: string;
+	logo_marchio?: string | { id?: string | null } | null;
+	marchio_suggerito?: boolean | number | null;
 };
 
-function extractListItems(value: string) {
-	const items = Array.from(value.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi), (match) => match[1]?.trim() || '')
-		.filter(Boolean);
-
-	return items;
+function resolveAssetId(value: Brand['logo_marchio']) {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object' && typeof value.id === 'string') return value.id;
+	return '';
 }
 
-let suggestedBrands: string[] = [];
+function resolveLogoSrc(value: Brand['logo_marchio']) {
+	const id = resolveAssetId(value);
+	if (!id) return '';
+	return directusAssetUrl(id, {
+		width: 360,
+		height: 120,
+		quality: 82,
+		format: 'webp',
+	});
+}
+
+let suggestedBrands: { name: string; logoSrc: string }[] = [];
 
 try {
-	const optionsUrl = directusItemsUrl('options');
-	optionsUrl.searchParams.set('fields', 'marchi_suggeriti');
-	const optionsResponse = await directusFetch(optionsUrl);
-	if (optionsResponse.ok) {
-		const optionsPayload = await optionsResponse.json();
-		const options =
-			optionsPayload?.data && Array.isArray(optionsPayload.data)
-				? (optionsPayload.data[0] as Options | undefined)
-				: (optionsPayload?.data as Options | undefined);
-		const rawHtml = options?.marchi_suggeriti || '';
-
-		suggestedBrands = extractListItems(rawHtml);
+	const brandsUrl = directusItemsUrl('Marchi');
+	brandsUrl.searchParams.set('fields', 'id,nome_marchio,logo_marchio,marchio_suggerito');
+	brandsUrl.searchParams.set('filter[marchio_suggerito][_eq]', 'true');
+	brandsUrl.searchParams.set('sort', 'sort,nome_marchio');
+	brandsUrl.searchParams.set('limit', '-1');
+	const brandsResponse = await directusFetch(brandsUrl);
+	if (brandsResponse.ok) {
+		const brandsPayload = await brandsResponse.json();
+		const brands = Array.isArray(brandsPayload?.data) ? (brandsPayload.data as Brand[]) : [];
+		suggestedBrands = brands
+			.map((brand) => ({
+				name: brand.nome_marchio?.trim() || '',
+				logoSrc: resolveLogoSrc(brand.logo_marchio),
+			}))
+			.filter((brand) => brand.name);
 	}
 } catch (error) {
 	console.error('Errore caricando i marchi suggeriti:', error);
@@ -38,14 +55,20 @@ try {
 		<div class="products_suggested_brands_inner">
 			<div class="products_suggested_brands_intro">
 				<div class="products_suggested_brands_kicker">Marchi suggeriti</div>
-				<h2 class="products_suggested_brands_title">Collaboriamo con i principali fornitori.</h2>
+				<h2 class="products_suggested_brands_title">Collaboriamo con le principali societa di riferimento.</h2>
 				<p class="products_suggested_brands_text">Scopri il prodotto adatto alle tue esigenze:</p>
 			</div>
 
 			<div class="products_suggested_brands_content">
 				<div class="products_suggested_brands_list" aria-label="Marchi suggeriti">
 					{suggestedBrands.map((brand) => (
-						<span class="products_suggested_brands_item" set:html={brand}></span>
+						<span class="products_suggested_brands_item" title={brand.name}>
+							{brand.logoSrc ? (
+								<img src={brand.logoSrc} alt={brand.name} loading="lazy" />
+							) : (
+								<span>{brand.name}</span>
+							)}
+						</span>
 					))}
 				</div>
 			</div>
@@ -109,8 +132,9 @@ try {
 
 	.products_suggested_brands_list {
 		display: flex;
-		flex-direction: column;
-		gap: 14px;
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 50px;
 		align-items: flex-start;
 		width: 100%;
 	}
@@ -118,26 +142,25 @@ try {
 	.products_suggested_brands_item {
 		display: inline-flex;
 		align-items: center;
-		padding: 10px;
-		border-radius: 20px;
-		background: #f2f2f2;
+		justify-content: center;
+		padding: 0;
+		border-radius: 0;
+		background: transparent;
 		border: 0;
 		font-size: 18px;
 		line-height: 1.2;
 		font-weight: 600;
-		color: var(--blu);
-		width: 100%;
-		min-height: 52px;
+		color: var(--arancione-battistel);
+		width: auto;
+		height: 70px;
+		min-height: 70px;
 	}
 
-	:global(.products_suggested_brands_item p) {
-		margin: 0;
-	}
-
-	:global(.products_suggested_brands_item strong),
-	:global(.products_suggested_brands_item a) {
-		color: inherit;
-		text-decoration: none;
+	.products_suggested_brands_item img {
+		width: auto;
+		height: 70px;
+		max-width: 100%;
+		object-fit: contain;
 	}
 
 	@media (max-width: 760px) {

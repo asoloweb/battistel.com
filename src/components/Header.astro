@@ -149,12 +149,17 @@ function getItemTitle(item: MenuItem, index: number) {
 	<div class="site-header-topbar">
 		<div class="site-header-topbar-inner">
 			{headerText && <div class="site-header-topbar-text" set:html={headerText}></div>}
-			<a class="site-header-topbar-link site-header-topbar-search" href="/prodotti" aria-label="Cerca prodotti">
-				<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-					<path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.44 1.41-1.42-4.43-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" fill="currentColor"></path>
-				</svg>
-				<span>Cerca prodotti</span>
-			</a>
+			<div class="site-header-topbar-actions">
+				<a class="site-header-topbar-link site-header-topbar-search" href="/prodotti" aria-label="Cerca prodotti">
+					<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+						<path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.44 1.41-1.42-4.43-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" fill="currentColor"></path>
+					</svg>
+					<span>Cerca prodotti</span>
+				</a>
+				<button class="site-header-topbar-link site-header-topbar-quote" type="button" data-open-quote-popup>
+					Richiedi preventivo
+				</button>
+			</div>
 		</div>
 	</div>
 	<nav aria-label="Menu principale">

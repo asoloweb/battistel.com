@@ -9,6 +9,8 @@ interface Props {
 	backHref?: string;
 	backLabel?: string;
 	showGlobalSearch?: boolean;
+	showQuoteButton?: boolean;
+	quoteButtonLabel?: string;
 	searchAction?: string;
 	searchPlaceholder?: string;
 	searchParamName?: string;
@@ -20,6 +22,8 @@ const {
 	backHref = '',
 	backLabel = '',
 	showGlobalSearch = false,
+	showQuoteButton = false,
+	quoteButtonLabel = 'Richiedi preventivo',
 	searchAction = '/prodotti',
 	searchPlaceholder = 'Cerca prodotti',
 	searchParamName = 'q',
@@ -63,6 +67,9 @@ const jsonLd = {
 						aria-label={searchPlaceholder}
 					/>
 					<button class="breadcrumbs_search_button" type="submit">Cerca</button>
+					{showQuoteButton && (
+						<button class="breadcrumbs_quote_button" type="button" data-open-quote-popup>{quoteButtonLabel}</button>
+					)}
 				</form>
 			)}
 		</nav>
@@ -84,7 +91,7 @@ const jsonLd = {
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
-		color: var(--blu);
+		color: var(--arancione-battistel);
 		font-size: 14px;
 		font-weight: 700;
 		text-decoration: none;
@@ -136,7 +143,7 @@ const jsonLd = {
 
 	.breadcrumbs_search_input:focus {
 		outline: none;
-		border-color: var(--blu);
+		border-color: var(--arancione-battistel);
 		box-shadow: 0 0 0 3px rgba(255, 64, 0, 0.18);
 	}
 
@@ -148,7 +155,7 @@ const jsonLd = {
 		height: 52px;
 		font: inherit;
 		font-weight: 700;
-		background: var(--blu);
+		background: var(--arancione-battistel);
 		color: #fff;
 		cursor: pointer;
 		transition: transform 180ms ease, filter 180ms ease;
@@ -157,6 +164,25 @@ const jsonLd = {
 	.breadcrumbs_search_button:hover {
 		filter: brightness(1.04);
 		transform: translateY(-1px);
+	}
+
+	.breadcrumbs_quote_button {
+		appearance: none;
+		border: 1px solid rgba(0, 0, 0, 0.2);
+		border-radius: 999px;
+		padding: 0 20px;
+		height: 52px;
+		font: inherit;
+		font-weight: 700;
+		background: #fff;
+		color: var(--nero);
+		cursor: pointer;
+		transition: transform 180ms ease, border-color 180ms ease;
+	}
+
+	.breadcrumbs_quote_button:hover {
+		transform: translateY(-1px);
+		border-color: var(--arancione-battistel);
 	}
 
 	.breadcrumbs_item {
@@ -177,7 +203,7 @@ const jsonLd = {
 
 	.breadcrumbs_item span[aria-current='page'] {
 		font-weight: 700;
-		color: #ff4000;
+		color: #d77701;
 	}
 
 	@media (max-width: 760px) {

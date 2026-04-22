@@ -1,0 +1,433 @@
+---
+import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
+
+type PopupItem = {
+	id?: number;
+	status?: string;
+	titolo?: string;
+	descrizione?: string;
+	slug?: string;
+	kicker?: string;
+};
+
+const flowTriggerId = import.meta.env.PUBLIC_DIRECTUS_FLOW_TRIGGER_ID;
+const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
+	? import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
+	: flowTriggerId
+	? `${DIRECTUS_URL}/flows/trigger/${flowTriggerId}`
+	: '';
+
+let popupTitle = 'Richiedi preventivo';
+let popupDescription =
+	'Compila il form per ricevere un preventivo personalizzato su uno o piu prodotti. Ti ricontatteremo nel piu breve tempo possibile.';
+let popupKicker = 'Preventivo prodotti';
+
+try {
+	const popupUrl = directusItemsUrl('Popup');
+	popupUrl.searchParams.set('fields', 'titolo,descrizione,slug,kicker,status');
+	popupUrl.searchParams.set('filter[status][_eq]', 'published');
+	popupUrl.searchParams.set('filter[slug][_eq]', 'richiedi-preventivo');
+	popupUrl.searchParams.set('limit', '1');
+	const popupResponse = await directusFetch(popupUrl);
+	if (popupResponse.ok) {
+		const popupPayload = await popupResponse.json();
+		const item = Array.isArray(popupPayload?.data)
+			? (popupPayload.data[0] as PopupItem | undefined)
+			: (popupPayload?.data as PopupItem | undefined);
+		if (item?.titolo?.trim()) popupTitle = item.titolo.trim();
+		if (item?.descrizione?.trim()) popupDescription = item.descrizione.trim();
+		if (item?.kicker?.trim()) popupKicker = item.kicker.trim();
+	}
+} catch (error) {
+	console.error('Errore caricando popup preventivo:', error);
+}
+---
+
+<div class="quote_popup_overlay" data-quote-popup-overlay hidden>
+	<div class="quote_popup" role="dialog" aria-modal="true" aria-labelledby="quote-popup-title">
+		<button class="quote_popup_close" type="button" aria-label="Chiudi popup" data-quote-popup-close>
+			<span aria-hidden="true">&times;</span>
+		</button>
+
+		<div class="quote_popup_inner">
+			<div class="quote_popup_intro">
+				<div class="quote_popup_kicker">{popupKicker}</div>
+				<h2 id="quote-popup-title" class="quote_popup_title">{popupTitle}</h2>
+				<p class="quote_popup_text">{popupDescription}</p>
+			</div>
+
+			<div class="quote_popup_form_wrap">
+				<form class="quote_popup_form" method="post" data-webhook-url={webhookUrl}>
+					<label class="quote_popup_field">
+						<span>Ragione sociale</span>
+						<input name="ragione_sociale" type="text" autocomplete="organization" required />
+					</label>
+
+					<div class="quote_popup_grid">
+						<label class="quote_popup_field">
+							<span>Referente</span>
+							<input name="referente" type="text" autocomplete="name" required />
+						</label>
+
+						<label class="quote_popup_field">
+							<span>Email</span>
+							<input name="email" type="email" autocomplete="email" required />
+						</label>
+					</div>
+
+					<div class="quote_popup_grid">
+						<label class="quote_popup_field">
+							<span>Telefono</span>
+							<input name="telefono" type="tel" autocomplete="tel" />
+						</label>
+
+						<label class="quote_popup_field">
+							<span>Prodotto di interesse</span>
+							<input name="product_title" type="text" autocomplete="off" placeholder="Es. Bardahl XTC C60 5W40" />
+						</label>
+					</div>
+
+					<label class="quote_popup_field">
+						<span>Messaggio</span>
+						<textarea name="messaggio" rows={5} required placeholder="Indica quantita, tempistiche e dettagli della richiesta."></textarea>
+					</label>
+
+					<label class="quote_popup_privacy">
+						<input name="privacy" type="checkbox" required />
+						<span>
+							Accetto la <a href="/privacy-policy">privacy policy</a>
+						</span>
+					</label>
+
+					<button class="quote_popup_submit" type="submit">Invia richiesta</button>
+					<p class="quote_popup_status" role="status" aria-live="polite"></p>
+				</form>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script type="module">
+	(() => {
+		const overlay = document.querySelector('[data-quote-popup-overlay]');
+		if (!(overlay instanceof HTMLElement)) {
+			return;
+		}
+
+		const closeButton = overlay.querySelector('[data-quote-popup-close]');
+		const form = overlay.querySelector('.quote_popup_form');
+		const statusEl = overlay.querySelector('.quote_popup_status');
+		const submitButton = overlay.querySelector('.quote_popup_submit');
+
+		let previousOverflow = '';
+
+		const openPopup = () => {
+		previousOverflow = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+		overlay.hidden = false;
+		window.requestAnimationFrame(() => {
+			overlay.classList.add('is-open');
+		});
+	};
+
+		const closePopup = () => {
+		overlay.classList.remove('is-open');
+		document.body.style.overflow = previousOverflow;
+		window.setTimeout(() => {
+			overlay.hidden = true;
+		}, 180);
+	};
+
+		document.addEventListener('click', (event) => {
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+			const trigger = target.closest('[data-open-quote-popup]');
+			if (!trigger) return;
+			event.preventDefault();
+			openPopup();
+		});
+
+		if (closeButton instanceof HTMLElement) {
+		closeButton.addEventListener('click', closePopup);
+		}
+
+		overlay.addEventListener('click', (event) => {
+		if (event.target === overlay) closePopup();
+		});
+
+		window.addEventListener('keydown', (event) => {
+		if (event.key === 'Escape' && !overlay.hidden) closePopup();
+		});
+
+		if (form instanceof HTMLFormElement) {
+		const webhookUrl = form.dataset.webhookUrl;
+
+		form.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			if (!webhookUrl) {
+				if (statusEl) {
+					statusEl.textContent =
+						'Webhook non configurato. Imposta PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE o PUBLIC_DIRECTUS_FLOW_TRIGGER_ID.';
+					statusEl.dataset.state = 'error';
+				}
+				return;
+			}
+
+			if (submitButton instanceof HTMLButtonElement) submitButton.disabled = true;
+			if (statusEl) {
+				statusEl.textContent = 'Invio in corso...';
+				statusEl.dataset.state = 'loading';
+			}
+
+			try {
+				const formData = new FormData(form);
+				const contatto = [
+					'Tipo richiesta: prodotto',
+					`Prodotto: ${String(formData.get('product_title') || '').trim() || '-'}`,
+					`Ragione sociale: ${String(formData.get('ragione_sociale') || '').trim()}`,
+					`Referente: ${String(formData.get('referente') || '').trim()}`,
+					`Email: ${String(formData.get('email') || '').trim()}`,
+					`Telefono: ${String(formData.get('telefono') || '').trim() || '-'}`,
+					`Messaggio: ${String(formData.get('messaggio') || '').trim()}`,
+				].join('\n');
+
+				const payload = {
+					tipo_richiesta: 'prodotto',
+					sorgente: 'popup_preventivo',
+					ragione_sociale: String(formData.get('ragione_sociale') || '').trim(),
+					referente: String(formData.get('referente') || '').trim(),
+					email: String(formData.get('email') || '').trim(),
+					telefono: String(formData.get('telefono') || '').trim(),
+					product_title: String(formData.get('product_title') || '').trim(),
+					messaggio: String(formData.get('messaggio') || '').trim(),
+					contatto,
+				};
+
+				const response = await fetch(webhookUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						...payload,
+						data: payload,
+						payload,
+						body: payload,
+					}),
+				});
+
+				if (!response.ok) throw new Error(`Webhook error: ${response.status}`);
+
+				form.reset();
+				if (statusEl) {
+					statusEl.textContent = 'Richiesta inviata con successo.';
+					statusEl.dataset.state = 'success';
+				}
+			} catch (error) {
+				console.error('Errore invio popup preventivo:', error);
+				if (statusEl) {
+					statusEl.textContent = "Errore durante l'invio. Riprova piu tardi.";
+					statusEl.dataset.state = 'error';
+				}
+			} finally {
+				if (submitButton instanceof HTMLButtonElement) submitButton.disabled = false;
+			}
+		});
+		}
+	})();
+</script>
+
+<style>
+	.quote_popup_overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 2147483647;
+		background: rgba(0, 0, 0, 0.7);
+		display: grid;
+		place-items: center;
+		padding: 20px;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 180ms ease;
+		isolation: isolate;
+	}
+
+	.quote_popup_overlay[hidden] {
+		display: none !important;
+	}
+
+	.quote_popup_overlay.is-open {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.quote_popup {
+		width: min(1080px, 100%);
+		max-height: calc(100vh - 40px);
+		overflow: auto;
+		background: #fff;
+		border-radius: 24px;
+		box-shadow: 0 28px 50px rgba(0, 0, 0, 0.28);
+		position: relative;
+		z-index: 1;
+	}
+
+	.quote_popup_close {
+		position: absolute;
+		top: 10px;
+		right: 12px;
+		width: 42px;
+		height: 42px;
+		border: 0;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.18);
+		color: #fff;
+		font-size: 30px;
+		line-height: 1;
+		cursor: pointer;
+		z-index: 2;
+	}
+
+	.quote_popup_inner {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		min-height: 560px;
+	}
+
+	.quote_popup_intro {
+		padding: 52px 44px;
+		background: linear-gradient(140deg, #0f3271 0%, #194f9f 100%);
+		color: #fff;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 18px;
+	}
+
+	.quote_popup_kicker {
+		font-size: 13px;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: rgba(255, 255, 255, 0.82);
+	}
+
+	.quote_popup_title {
+		margin: 0;
+		font-size: clamp(30px, 3.2vw, 42px);
+		line-height: 1.06;
+	}
+
+	.quote_popup_text {
+		margin: 0;
+		font-size: 18px;
+		line-height: 1.6;
+		color: rgba(255, 255, 255, 0.92);
+	}
+
+	.quote_popup_form_wrap {
+		padding: 40px;
+		color: #000;
+	}
+
+	.quote_popup_form {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.quote_popup_grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 14px;
+	}
+
+	.quote_popup_field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		font-size: 14px;
+	}
+
+	.quote_popup_field input,
+	.quote_popup_field textarea {
+		border: 1px solid #d9d9d9;
+		border-radius: 12px;
+		padding: 12px 14px;
+		font: inherit;
+	}
+
+	.quote_popup_field textarea {
+		resize: vertical;
+		min-height: 130px;
+	}
+
+	.quote_popup_privacy {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-size: 14px;
+	}
+
+	.quote_popup_privacy input {
+		width: 18px;
+		height: 18px;
+	}
+
+	.quote_popup_privacy a {
+		color: var(--arancione-battistel);
+		text-decoration: underline;
+	}
+
+	.quote_popup_submit {
+		border: 0;
+		border-radius: 999px;
+		padding: 12px 18px;
+		background: var(--arancione-battistel);
+		color: #fff;
+		font-family: var(--font-heading);
+		font-size: 16px;
+		font-weight: 700;
+		cursor: pointer;
+		transition: transform 180ms ease, opacity 180ms ease;
+	}
+
+	.quote_popup_submit:hover {
+		transform: translateY(-2px);
+		opacity: 0.95;
+	}
+
+	.quote_popup_submit:disabled {
+		opacity: 0.65;
+		cursor: not-allowed;
+		transform: none;
+	}
+
+	.quote_popup_status {
+		margin: 2px 2px 0;
+		font-size: 14px;
+		min-height: 20px;
+	}
+
+	.quote_popup_status[data-state='success'] {
+		color: #1c7c3a;
+	}
+
+	.quote_popup_status[data-state='error'] {
+		color: #b42318;
+	}
+
+	.quote_popup_status[data-state='loading'] {
+		color: #555;
+	}
+
+	@media (max-width: 920px) {
+		.quote_popup_inner,
+		.quote_popup_grid {
+			grid-template-columns: 1fr;
+		}
+
+		.quote_popup_intro,
+		.quote_popup_form_wrap {
+			padding: 28px;
+		}
+	}
+</style>

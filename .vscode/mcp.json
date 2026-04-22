@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "directus-battistel": {
+      "command": "npx",
+      "args": ["-y", "directus-mcp-server"],
+      "env": {
+        "DIRECTUS_URL": "https://battistel.prometeo.com",
+        "DIRECTUS_TOKEN": "KC_e0A55cMfc6qolRd2WJLkRRg4BUZPt"
+      }
+    },
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"]

@@ -1,6 +1,7 @@
 ---
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import PopupPreventivo from '../components/PopupPreventivo.astro';
 import '../styles/global.css';
 
 export interface Props {
@@ -73,6 +74,7 @@ let faviconSrc = '/favicon_battistel.svg';
 		<main>
 			<slot />
 		</main>
+		<PopupPreventivo />
 		<Footer />
 		<script defer src="/vendor/aos.js"></script>
 		<script defer src="/vendor/swiper-bundle.min.js"></script>

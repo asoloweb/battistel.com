@@ -3,14 +3,19 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import ProductInquiryForm from '../../components/ProductInquiryForm.astro';
 import { DIRECTUS_URL, directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
-import { buildProductSlugMap, getProductTitle } from '../../lib/products';
+import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveProductThumbnailSrc } from '../../lib/products';
 import { slugifyLabel } from '../../lib/slug';
 
 const DEFAULT_PRODUCT_IMAGE = 'https://battistel.prometeo.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
+const CATEGORY_CARD_IMAGE = 'https://battistel.prometeo.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
 
 type Category = {
 	id?: number | string;
 	titolo_categoria?: string;
+	descrizione_categoria?: string;
+	immagine_categoria?: unknown;
+	immagine?: unknown;
+	image?: unknown;
 	parent_categoria?: unknown;
 	parent?: unknown;
 	parent_id?: unknown;
@@ -56,8 +61,18 @@ type Product = {
 	imballo?: string;
 	foto_prodotto?: string;
 	Categoria?: CategoryRelation[];
+	Categoria_correlata?: CategoryRelation[];
 	varianti_prodotto?: VariantRelation[];
 	Tag?: TagRelation[];
+	[key: string]: unknown;
+};
+
+type Brand = {
+	id?: number | string;
+	logo_marchio?: unknown;
+	logo?: unknown;
+	immagine?: unknown;
+	image?: unknown;
 };
 
 type ProductsPage = {
@@ -68,15 +83,6 @@ type ProductsPage = {
 	hide_page_header?: boolean;
 	featured_image?: string;
 };
-
-function resolveImageSrc(value: string | undefined) {
-	return directusAssetUrl(value, {
-		width: 1200,
-		height: 900,
-		quality: 74,
-		format: 'webp',
-	});
-}
 
 async function fetchProductsPage(): Promise<ProductsPage | null> {
 	try {
@@ -114,6 +120,21 @@ async function fetchProducts(): Promise<Product[]> {
 
 }
 
+async function fetchBrands(): Promise<Brand[]> {
+	try {
+		const url = directusItemsUrl('Marchi');
+		url.searchParams.set('fields', 'id,logo_marchio');
+		url.searchParams.set('limit', '-1');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Brand[]) : [];
+	} catch (error) {
+		console.error('Errore caricando i marchi:', error);
+		return [];
+	}
+}
+
 function getCategories(product: Product) {
 	if (!Array.isArray(product?.Categoria)) return [];
 	return product.Categoria
@@ -127,6 +148,41 @@ function getCategories(product: Product) {
 			};
 		})
 		.filter((entry): entry is { id: number | string; titolo: string; slug: string } => Boolean(entry));
+}
+
+function getRelatedCategories(product: Product) {
+	if (!Array.isArray(product?.Categoria_correlata)) return [];
+	return product.Categoria_correlata
+		.map((entry) => {
+			const category = entry?.Categorie_id && typeof entry.Categorie_id === 'object' ? entry.Categorie_id : null;
+			if (!category || (typeof category.id !== 'number' && typeof category.id !== 'string')) return null;
+			return {
+				id: category.id,
+				titolo: category.titolo_categoria || '',
+				slug: slugifyLabel(category.titolo_categoria) || String(category.id),
+			};
+		})
+		.filter((entry): entry is { id: number | string; titolo: string; slug: string } => Boolean(entry));
+}
+
+function resolveAssetId(value: unknown): string {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	if (typeof value === 'object' && value) {
+		const id = (value as { id?: unknown }).id;
+		if (typeof id === 'string') return id;
+	}
+	return '';
+}
+
+function resolveCategoryImageSrc(value: unknown): string {
+	const id = resolveAssetId(value);
+	if (!id) return CATEGORY_CARD_IMAGE;
+	return directusAssetUrl(id, {
+		width: 760,
+		quality: 72,
+		format: 'webp',
+	});
 }
 
 function resolveToken(value: unknown): string {
@@ -216,7 +272,7 @@ function formatPrice(value: number | string | undefined) {
 
 export async function getStaticPaths() {
 	const url = directusItemsUrl('Prodotti');
-	url.searchParams.set('fields', '*,Categoria.Categorie_id.*,varianti_prodotto.Varianti_id.*,Tag.Tags_id.*');
+	url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Categoria_correlata.Categorie_id.*,varianti_prodotto.Varianti_id.*,Tag.Tags_id.*');
 	url.searchParams.set('filter[status][_eq]', 'published');
 	url.searchParams.set('limit', '-1');
 	const response = await directusFetch(url);
@@ -235,20 +291,34 @@ export async function getStaticPaths() {
 const { product } = Astro.props as { product: Product };
 const productsPage = await fetchProductsPage();
 const title = getProductTitle(product) || 'Prodotto';
-const imageSrc = product?.foto_prodotto ? resolveImageSrc(product.foto_prodotto) : DEFAULT_PRODUCT_IMAGE;
 const pageHeaderImage = `${DIRECTUS_URL}/assets/491185c0-ede3-4ffd-b149-5872266922fa`;
 const allProducts = await fetchProducts();
+const brands = await fetchBrands();
+const brandLogoById = buildBrandLogoMap(brands);
+const imageSrc = resolveProductThumbnailSrc(product, {
+	defaultImage: DEFAULT_PRODUCT_IMAGE,
+	brandLogoById,
+	width: 1200,
+	height: 900,
+	quality: 74,
+	format: 'webp',
+});
 const allCategories = await fetchCategories();
 const categories = getCategories(product);
 const variants = getVariants(product);
 const tags = getTags(product);
 const packaging = splitCommaValues(product?.imballo);
+const relatedCategories = getRelatedCategories(product);
 const categoryMap = new Map(
 	allCategories
 		.map((category) => {
 			const token = resolveToken(category.id);
 			const label = category.titolo_categoria?.trim() || '';
 			if (!token || !label) return null;
+			const imageField =
+				resolveAssetId((category as { immagine_categoria?: unknown }).immagine_categoria) ||
+				resolveAssetId((category as { immagine?: unknown }).immagine) ||
+				resolveAssetId((category as { image?: unknown }).image);
 			return [
 				token,
 				{
@@ -256,10 +326,33 @@ const categoryMap = new Map(
 					title: label,
 					slug: slugifyLabel(label) || token,
 					parentToken: getParentCategoryToken(category),
+					description: category.descrizione_categoria?.trim() || '',
+					imageSrc: resolveCategoryImageSrc(imageField),
 				},
 			] as const;
 		})
-		.filter((entry): entry is readonly [string, { token: string; title: string; slug: string; parentToken: string | null }] => Boolean(entry))
+		.filter((entry): entry is readonly [string, { token: string; title: string; slug: string; parentToken: string | null; description: string; imageSrc: string }] => Boolean(entry))
+);
+
+const relatedCategoryCards = Array.from(
+	new Map(
+		relatedCategories
+			.map((entry) => {
+				const node = categoryMap.get(String(entry.id));
+				if (!node) return null;
+				return [
+					node.slug,
+					{
+						title: node.title,
+						description: node.description,
+						href: `/prodotti/categoria/${encodeURIComponent(node.slug)}`,
+						imageSrc: node.imageSrc || CATEGORY_CARD_IMAGE,
+					},
+				] as const;
+			})
+			.filter((entry): entry is readonly [string, { title: string; description: string; href: string; imageSrc: string }] => Boolean(entry))
+	)
+	.values()
 );
 
 const primaryCategory = categories[0] || null;
@@ -308,7 +401,14 @@ const relatedProducts = (primaryCategory
 			.map(({ product: related }) => ({
 				title: getProductTitle(related) || 'Prodotto',
 				href: `/prodotti/${relatedSlugMap.get(related.id || 0) || String(related.id || '')}`,
-				imageSrc: related?.foto_prodotto ? resolveImageSrc(related.foto_prodotto) : DEFAULT_PRODUCT_IMAGE,
+				imageSrc: resolveProductThumbnailSrc(related, {
+					defaultImage: DEFAULT_PRODUCT_IMAGE,
+					brandLogoById,
+					width: 1200,
+					height: 900,
+					quality: 74,
+					format: 'webp',
+				}),
 			}))
 	: []);
 ---
@@ -332,6 +432,7 @@ const relatedProducts = (primaryCategory
 					{ name: title },
 				]}
 				showGlobalSearch={true}
+				showQuoteButton={true}
 				searchAction="/prodotti"
 				searchPlaceholder="Cerca in tutti i prodotti"
 			/>
@@ -414,6 +515,25 @@ const relatedProducts = (primaryCategory
 				categoryName={primaryCategory?.titolo || ''}
 			/>
 
+			{relatedCategoryCards.length > 0 && (
+				<section class="product_related">
+					<div class="product_related_head">
+						<h2 class="product_related_title">Categorie correlate</h2>
+					</div>
+
+					<div class="product_related_grid">
+						{relatedCategoryCards.map((entry) => (
+							<a class="product_related_card" href={entry.href}>
+								<div class="product_related_media">
+									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+								</div>
+								<h3 class="product_related_card_title">{entry.title}</h3>
+							</a>
+						))}
+					</div>
+				</section>
+			)}
+
 			{relatedProducts.length > 0 && primaryCategory && (
 				<section class="product_related">
 					<div class="product_related_head">
@@ -483,7 +603,7 @@ const relatedProducts = (primaryCategory
 	.product_code {
 		margin: 0;
 		font-weight: 600;
-		color: var(--blu);
+		color: var(--arancione-battistel);
 	}
 
 	.product_short {
@@ -525,11 +645,11 @@ const relatedProducts = (primaryCategory
 	.product_pill {
 		display: inline-flex;
 		align-items: center;
-		padding: 6px 12px;
+		padding: 10px 16px;
 		border-radius: 999px;
 		background: rgba(0, 84, 166, 0.1);
-		color: var(--blu);
-		font-size: 13px;
+		color: var(--arancione-battistel);
+		font-size: 15px;
 		font-weight: 600;
 	}
 
@@ -575,7 +695,7 @@ const relatedProducts = (primaryCategory
 		display: flex;
 		justify-content: center;
 		margin-top: 20px;
-		color: #ff4000;
+		color: #d77701;
 		font-weight: 700;
 		text-decoration: none;
 	}

@@ -124,7 +124,7 @@ function resolveVideoSrc(value: string | undefined) {
 
 		.title_block h1 {
 		margin: 0;
-		color: var(--blu);
+		color: var(--arancione-battistel);
 		}
 
 		.slider_block {
@@ -150,9 +150,9 @@ function resolveVideoSrc(value: string | undefined) {
 
 		.single_slide h1 {
 		font-family: "Roboto", sans-serif;
-		font-size: 96px;
+		font-size: clamp(40px, 6vw, 96px);
 		font-weight: 600;
-		line-height: 84px;
+		line-height: 0.9;
 		color: #ffffff;
 		text-shadow: 12px 6px 15px #000;
 		max-width: min(1100px, 92vw);

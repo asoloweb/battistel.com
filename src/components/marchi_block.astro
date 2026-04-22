@@ -6,7 +6,6 @@ interface Brand {
 	sort?: number;
 	nome_marchio?: string;
 	logo_marchio?: string | { id?: string | null } | null;
-	url_marchio?: string;
 }
 
 interface Props {
@@ -32,18 +31,10 @@ function resolveImageSrc(value: Brand['logo_marchio']) {
 	});
 }
 
-function normalizeHref(value: string | undefined) {
-	if (!value) return '';
-	const trimmed = value.trim();
-	if (!trimmed) return '';
-	if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
-	return `https://${trimmed}`;
-}
-
 async function fetchBrands(): Promise<Brand[]> {
 	try {
 		const url = directusItemsUrl('Marchi');
-		url.searchParams.set('fields', 'id,nome_marchio,logo_marchio,url_marchio,sort');
+		url.searchParams.set('fields', 'id,nome_marchio,logo_marchio,sort');
 		url.searchParams.set('sort', 'sort,nome_marchio');
 		const response = await directusFetch(url);
 		if (!response.ok) return [];
@@ -66,15 +57,14 @@ const brands = await fetchBrands();
 				<div class="swiper-wrapper">
 				{brands.map((brand) => {
 					const imageSrc = resolveImageSrc(brand.logo_marchio);
-					const href = normalizeHref(brand.url_marchio);
+					const brandName = (brand.nome_marchio || '').trim();
+					const href = brandName ? `/prodotti?q=${encodeURIComponent(brandName)}` : '';
 					const Tag = href ? 'a' : 'div';
 
 					return (
 						<Tag
 							class="marchio_item swiper-slide"
 							href={href || undefined}
-							target={href ? '_blank' : undefined}
-							rel={href ? 'noopener noreferrer' : undefined}
 						>
 							{imageSrc ? (
 								<img src={imageSrc} alt={brand.nome_marchio || 'Marchio'} loading="lazy" />
@@ -141,7 +131,7 @@ const brands = await fetchBrands();
 		margin: 0 0 24px;
 		color: #000;
 		font-size: clamp(28px, 4vw, 42px);
-		border-bottom: 4px solid #ff4000;
+		border-bottom: 4px solid #d77701;
 		padding-bottom: 20px;
 	}
 
@@ -198,7 +188,7 @@ const brands = await fetchBrands();
 	}
 
 	.marchi_grid :global(.swiper-pagination-bullet) {
-		background: var(--blu);
+		background: var(--arancione-battistel);
 		opacity: 0.35;
 	}
 

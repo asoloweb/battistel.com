@@ -1,7 +1,7 @@
 ---
 import Breadcrumbs from './Breadcrumbs.astro';
 import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
-import { buildProductSlugMap, getProductTitle } from '../lib/products';
+import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveAssetId, resolveProductThumbnailSrc } from '../lib/products';
 import { slugifyLabel } from '../lib/slug';
 
 const CATEGORY_CARD_IMAGE = 'https://battistel.prometeo.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
@@ -36,8 +36,16 @@ interface Product {
 	titolo?: string;
 	foto_prodotto?: string;
 	Categoria?: CategoryRelation[];
-	Tag?: { Tags_id?: { titolo_tag?: string } | number | null }[];
+	Tag?: { Tags_id?: { titolo_tag?: string; nascosto?: boolean | number | string | null } | number | null }[];
 	[key: string]: unknown;
+}
+
+interface Brand {
+	id?: number | string;
+	logo_marchio?: unknown;
+	logo?: unknown;
+	immagine?: unknown;
+	image?: unknown;
 }
 
 interface Props {
@@ -56,18 +64,23 @@ function resolveImageSrc(value: string | undefined) {
 	});
 }
 
-function resolveAssetId(value: unknown): string {
-	if (!value) return '';
-	if (typeof value === 'string') return value;
-	if (typeof value === 'object') {
-		const id = (value as { id?: string | null }).id;
-		return typeof id === 'string' ? id : '';
-	}
-	return '';
-}
-
 function normalizeFilterToken(value: string) {
 	return (value || '').trim().toLowerCase();
+}
+
+async function fetchBrands(): Promise<Brand[]> {
+	try {
+		const url = directusItemsUrl('Marchi');
+		url.searchParams.set('fields', 'id,logo_marchio');
+		url.searchParams.set('limit', '-1');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Brand[]) : [];
+	} catch (error) {
+		console.error('Errore caricando i marchi:', error);
+		return [];
+	}
 }
 
 function resolveToken(value: unknown): string {
@@ -122,7 +135,7 @@ async function fetchProducts(): Promise<Product[]> {
 		const url = directusItemsUrl('Prodotti');
 		url.searchParams.set(
 			'fields',
-			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag'
+			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag,Tag.Tags_id.nascosto'
 		);
 		url.searchParams.set('filter[status][_eq]', 'published');
 		url.searchParams.set('limit', '-1');
@@ -142,6 +155,8 @@ function extractProductTags(product: Product) {
 	const tags = product.Tag
 		.map((entry) => {
 			const related = entry?.Tags_id && typeof entry.Tags_id === 'object' ? entry.Tags_id : null;
+			const isHidden = related?.nascosto === true || related?.nascosto === 1 || related?.nascosto === '1';
+			if (isHidden) return null;
 			const label = related?.titolo_tag?.trim() || '';
 			if (!label) return null;
 			return { slug: normalizeFilterToken(label), label };
@@ -172,6 +187,8 @@ function getProductCategories(product: Product) {
 
 const categories = await fetchCategories();
 const products = await fetchProducts();
+const brands = await fetchBrands();
+const brandLogoById = buildBrandLogoMap(brands);
 const productSlugMap = buildProductSlugMap(products);
 
 const categoryTreeMap = new Map<string, { token: string; slug: string; parentToken: string | null; title: string; description: string; imageSrc: string }>();
@@ -259,7 +276,13 @@ const productsData = products
 		return {
 			title: getProductTitle(product) || 'Prodotto',
 			href: `/prodotti/${slug}`,
-			imageSrc: PRODUCT_CARD_IMAGE,
+			imageSrc: resolveProductThumbnailSrc(product, {
+				defaultImage: PRODUCT_CARD_IMAGE,
+				brandLogoById,
+				width: 760,
+				quality: 72,
+				format: 'webp',
+			}),
 			categorySlugs: Array.from(categorySlugs),
 			tags: extractProductTags(product),
 			searchText: [
@@ -292,6 +315,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 					...(breadcrumbCategoryItems.length > 0 ? breadcrumbCategoryItems : [{ name: selectedCategoryLabel }]),
 				]}
 				showGlobalSearch={true}
+				showQuoteButton={true}
 				searchAction="/prodotti"
 				searchPlaceholder="Cerca in tutti i prodotti"
 			/>
@@ -476,7 +500,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 	}
 
 	.products_tag_pills :global(.products_tag_pill.is-active) {
-		background: var(--blu);
+		background: var(--arancione-battistel);
 	}
 
 	.products_results_head {
@@ -499,7 +523,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		appearance: none;
 		border: 0;
 		background: transparent;
-		color: var(--blu);
+		color: var(--arancione-battistel);
 		font: inherit;
 		font-size: 14px;
 		font-weight: 600;
@@ -537,7 +561,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 	a.products_card:hover {
 		transform: translateY(-3px);
 		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
-		color: #ff4000;
+		color: #d77701;
 	}
 
 	.products_subcategory_media,
