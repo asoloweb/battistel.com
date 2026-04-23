@@ -6,6 +6,7 @@ import ProdottiOverviewBlock from '../components/prodotti_overview_block.astro';
 import ProductsSuggestedBrands from '../components/ProductsSuggestedBrands.astro';
 import MarchiBlock from '../components/marchi_block.astro';
 import AnniTimeline from '../components/anni_timeline.astro';
+import ProfessionistiBlock from '../components/professionisti_block.astro';
 import { directusFetch, directusItemsUrl } from '../lib/directus';
 
 type Page = {
@@ -60,6 +61,11 @@ const { page }: Props = Astro.props;
 			<MarchiBlock titolo="Marchi" />
 			<ProductsSuggestedBrands />
 			<PageContent page={page as any} showHeader={false} showContent={false} />
+		</>
+	) : page?.slug === 'professionisti' ? (
+		<>
+			<PageContent page={page as any} showContent={false} />
+			<ProfessionistiBlock />
 		</>
 	) : (
 		<>

@@ -1,0 +1,143 @@
+---
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
+
+type Professionista = {
+	id?: number;
+	nome_cognome?: string;
+	ruolo?: string;
+	immagine?: string;
+	descrizione?: string;
+	telefono?: string;
+	email?: string;
+	url_esterno?: string;
+};
+
+async function fetchProfessionisti(): Promise<Professionista[]> {
+	try {
+		const url = directusItemsUrl('Professionisti');
+		url.searchParams.set(
+			'fields',
+			'id,nome_cognome,ruolo,immagine,descrizione,telefono,email,url_esterno'
+		);
+		url.searchParams.set('sort', 'nome_cognome');
+		const response = await directusFetch(url);
+		if (!response.ok) return [];
+		const payload = await response.json();
+		return Array.isArray(payload?.data) ? (payload.data as Professionista[]) : [];
+	} catch {
+		return [];
+	}
+}
+
+const professionisti = await fetchProfessionisti();
+---
+
+{professionisti.length > 0 && (
+	<section class="professionisti_section">
+		<div class="professionisti_inner">
+			<div class="professionisti_grid">
+				{professionisti.map((item) => {
+					const imageSrc = directusAssetUrl(item.immagine);
+					return (
+						<article class="professionista_card">
+							{imageSrc && (
+								<div class="professionista_media">
+									<img src={imageSrc} alt={item.nome_cognome || 'Professionista'} loading="lazy" />
+								</div>
+							)}
+							<div class="professionista_content">
+								{item.nome_cognome && <h3>{item.nome_cognome}</h3>}
+								{item.ruolo && <p class="professionista_ruolo">{item.ruolo}</p>}
+								{item.descrizione && <p>{item.descrizione}</p>}
+								{item.telefono && <p><strong>Telefono:</strong> {item.telefono}</p>}
+								{item.email && <p><strong>Email:</strong> {item.email}</p>}
+								{item.url_esterno && (
+									<p>
+										<strong>Link:</strong>{' '}
+										<a href={item.url_esterno} target="_blank" rel="noopener noreferrer">
+											{item.url_esterno}
+										</a>
+									</p>
+								)}
+							</div>
+						</article>
+					);
+				})}
+			</div>
+		</div>
+	</section>
+)}
+
+<style>
+	.professionisti_section {
+		padding: 40px 20px 60px;
+	}
+
+	.professionisti_inner {
+		max-width: var(--max-width);
+		margin: 0 auto;
+	}
+
+	.professionisti_grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 24px;
+	}
+
+	.professionista_card {
+		background: #fff;
+		border-radius: 16px;
+		overflow: hidden;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.professionista_media {
+		aspect-ratio: 4 / 3;
+		overflow: hidden;
+	}
+
+	.professionista_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.professionista_content {
+		padding: 18px;
+	}
+
+	.professionista_content h3 {
+		margin: 0 0 8px;
+		font-size: 24px;
+		line-height: 1.2;
+	}
+
+	.professionista_content p {
+		margin: 0 0 8px;
+		line-height: 1.45;
+	}
+
+	.professionista_content p:last-child {
+		margin-bottom: 0;
+	}
+
+	.professionista_ruolo {
+		font-weight: 600;
+		opacity: 0.8;
+	}
+
+	@media (max-width: 1100px) {
+		.professionisti_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 760px) {
+		.professionisti_grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>
