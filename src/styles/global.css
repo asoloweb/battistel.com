@@ -155,6 +155,10 @@ a {
   position: fixed;
 }
 
+.site-header-fixed .site-header-topbar-inner {
+  background-color: var(--arancione-battistel);
+}
+
 .site-header-fixed .site-header-topbar {
   background: var(--arancione-battistel);
 }

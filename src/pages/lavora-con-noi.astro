@@ -4,32 +4,40 @@ import PageContent from '../components/PageContent.astro';
 import JobApplicationForm from '../components/JobApplicationForm.astro';
 import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
 
+type Lavoro = {
+    id: string;
+    titolo: string;
+    descrizione?: string | null;
+    data?: string | null;
+    status: string;
+};
+
 type Page = {
-	status?: string;
-	slug?: string;
-	title?: string;
-	Titolo?: string;
-	seo_title?: string;
-	seo_desc?: string;
-	description?: string;
-	hide_page_header?: boolean;
-	page_header?: string;
-	featured_image?: string;
-	editor?: unknown[];
+    status?: string;
+    slug?: string;
+    title?: string;
+    Titolo?: string;
+    seo_title?: string;
+    seo_desc?: string;
+    description?: string;
+    hide_page_header?: boolean;
+    page_header?: string;
+    featured_image?: string;
+    editor?: unknown[];
 };
 
 async function fetchWorkWithUsPage() {
-	const url = directusItemsUrl('pages');
-	url.searchParams.set(
-		'fields',
-		'*,slug.*,editor.collection,editor.item.*,editor.item.slider.*,editor.item.slider.slides.item.*,editor.item.card.single_card_id.*,editor.item.card.single_card_id.link.id,editor.item.card.single_card_id.link.slug,editor.item.card.single_card_id.link.title'
-	);
-	url.searchParams.set('filter[status][_eq]', 'published');
-	url.searchParams.set('filter[slug][_eq]', 'lavora-con-noi');
+    const url = directusItemsUrl('pages');
+    url.searchParams.set(
+        'fields',
+        '*,slug.*,editor.collection,editor.item.*,editor.item.slider.*,editor.item.slider.slides.item.*,editor.item.card.single_card_id.*,editor.item.card.single_card_id.link.id,editor.item.card.single_card_id.link.slug,editor.item.card.single_card_id.link.title'
+    );
+    url.searchParams.set('filter[status][_eq]', 'published');
+    url.searchParams.set('filter[slug][_eq]', 'lavora-con-noi');
 
-	const response = await directusFetch(url);
-	const data = await response.json();
-	return (data?.data?.[0] as Page | undefined) ?? null;
+    const response = await directusFetch(url);
+    const data = await response.json();
+    return (data?.data?.[0] as Page | undefined) ?? null;
 }
 
 const page: Page | null = await fetchWorkWithUsPage();
@@ -37,15 +45,35 @@ const pageTitle = page?.title || page?.Titolo || '';
 const pageDescription = page?.description || '';
 
 function resolveImageSrc(value: string) {
-	if (!value) return '';
-	if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) {
-		return value;
-	}
-	return `${DIRECTUS_URL}/assets/${value}`;
+    if (!value) return '';
+    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) {
+        return value;
+    }
+    return `${DIRECTUS_URL}/assets/${value}`;
 }
 
 const pageHeaderImage = page?.featured_image ? resolveImageSrc(page.featured_image) : '';
 const showPageHeader = page ? !page.hide_page_header : false;
+
+async function fetchLavori(): Promise<Lavoro[]> {
+    try {
+        const url = directusItemsUrl('Lavori');
+        url.searchParams.set('fields', 'id,titolo,descrizione,data,status');
+        url.searchParams.set('limit', '-1');
+
+        const response = await directusFetch(url);
+        if (!response.ok) {
+            return [];
+        }
+        const data = await response.json();
+        const allLavori = data?.data ?? [];
+        return allLavori.filter((l: Lavoro) => l.status === 'published');
+    } catch {
+        return [];
+    }
+}
+
+const lavori: Lavoro[] = await fetchLavori();
 ---
 
 <BaseLayout
@@ -73,9 +101,26 @@ const showPageHeader = page ? !page.hide_page_header : false;
 				notFoundTitle="Pagina lavora con noi non trovata"
 				notFoundMessage="La pagina richiesta non esiste."
 			/>
+			{lavori.length > 0 && (
+				<div class="lavori_hero">
+					<div class="lavori_hero_content">
+						{lavori.map((lavoro) => (
+							<div class="lavoro_card">
+								<div class="lavoro_card_header">
+									<h3>{lavoro.titolo}</h3>
+									{lavoro.data && (
+										<span class="lavoro_card_data">{new Date(lavoro.data).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+									)}
+								</div>
+								{lavoro.descrizione && <div class="lavoro_card_desc" set:html={lavoro.descrizione}></div>}
+							</div>
+						))}
+					</div>
+				</div>
+			)}
 		</div>
 		<div class="lavora_column lavora_form">
-			<JobApplicationForm />
+			<JobApplicationForm lavori={lavori} />
 		</div>
 	</div>
 </BaseLayout>
@@ -99,5 +144,78 @@ const showPageHeader = page ? !page.hide_page_header : false;
 		.lavora_layout {
 			grid-template-columns: 1fr;
 		}
+	}
+
+	.lavori_hero {
+		color: #000;
+		margin-top: 40px;
+		display: flex;
+		background: transparent;
+		border-radius: 40px;
+		overflow: hidden;
+	}
+
+	.lavori_hero_content {
+		width: 100%;
+		padding: 0;
+		color: var(--text-color);
+		background: transparent;
+	}
+
+	.lavoro_card {
+		padding: 24px;
+		border-radius: 20px;
+		margin-bottom: 16px;
+		background: #fff;
+		border: 1px solid var(--border-color);
+		transition: transform 200ms ease, box-shadow 200ms ease;
+	}
+
+	.lavoro_card:last-child {
+		margin-bottom: 0;
+	}
+
+	.lavoro_card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+	}
+
+	.lavoro_card_header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		flex-wrap: wrap;
+		gap: 10px;
+		margin-bottom: 12px;
+	}
+
+	.lavoro_card_header h3 {
+		margin: 0;
+		font-size: 28px;
+		color: #000;
+		font-weight: 600;
+	}
+
+	.lavoro_card_data {
+		font-size: 0.85rem;
+		color: var(--text-color-secondary);
+		white-space: nowrap;
+		background: var(--background-color-secondary);
+		padding: 4px 12px;
+		border-radius: 20px;
+	}
+
+	.lavoro_card_desc {
+		font-size: 0.95rem;
+		line-height: 1.6;
+		color: var(--text-color);
+	}
+
+	.lavoro_card_desc :global(p) {
+		margin: 0 0 10px;
+	}
+
+	.lavoro_card_desc :global(p:last-child) {
+		margin-bottom: 0;
 	}
 </style>
