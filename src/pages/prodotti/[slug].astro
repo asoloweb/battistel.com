@@ -309,6 +309,8 @@ const variants = getVariants(product);
 const tags = getTags(product);
 const packaging = splitCommaValues(product?.imballo);
 const relatedCategories = getRelatedCategories(product);
+const fallbackRelatedCategories = categories.length > 1 ? categories.slice(1) : [];
+const effectiveRelatedCategories = relatedCategories.length > 0 ? relatedCategories : fallbackRelatedCategories;
 const categoryMap = new Map(
 	allCategories
 		.map((category) => {
@@ -336,7 +338,7 @@ const categoryMap = new Map(
 
 const relatedCategoryCards = Array.from(
 	new Map(
-		relatedCategories
+		effectiveRelatedCategories
 			.map((entry) => {
 				const node = categoryMap.get(String(entry.id));
 				if (!node) return null;

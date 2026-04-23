@@ -34,6 +34,7 @@ let logoLightSrc = import.meta.env.PUBLIC_LOGO_LIGHT || '/favicon.svg';
 let footerText = '';
 let sede1 = '';
 let sede2 = '';
+const PRIVACY_URL = 'https://www.iubenda.com/privacy-policy/83695289';
 const footerMenus = [
 	{ slug: 'menu-footer-1', items: [] as MenuItem[] },
 	{ slug: 'menu-footer-2', items: [] as MenuItem[] },
@@ -130,6 +131,29 @@ function getItemHref(item: MenuItem) {
 	return `/${page.slug}`;
 }
 
+function resolveFooterHref(href: string) {
+	if (!href) return href;
+	if (href === '/privacy-policy' || href === '/privacy' || href.includes('iubenda.com/privacy-policy')) {
+		return PRIVACY_URL;
+	}
+	return href;
+}
+
+function isPrivacyHref(href: string) {
+	return href === PRIVACY_URL;
+}
+
+function sanitizeFooterHtml(html: string) {
+	if (!html) return html;
+	return html
+		.replace(/href="\/privacy-policy"/g, `href="${PRIVACY_URL}"`)
+		.replace(/href="\/privacy"/g, `href="${PRIVACY_URL}"`)
+		.replace(/href="https?:\/\/www\.iubenda\.com\/privacy-policy\/[^"]+"/g, `href="${PRIVACY_URL}"`)
+		.replace(/<a\s+([^>]*href="https:\/\/www\.iubenda\.com\/privacy-policy\/83695289"[^>]*)>/g, '<a $1 target="_blank" rel="noopener noreferrer">');
+}
+
+const footerTextHtml = sanitizeFooterHtml(footerText);
+
 function getItemTitle(item: MenuItem, index: number) {
 	return item.label || getItemPage(item)?.title || `Link ${index + 1}`;
 }
@@ -146,10 +170,11 @@ function getItemTitle(item: MenuItem, index: number) {
 			{footerMenus.map((footerMenu) => (
 				<div class="FooterMenuColumn">
 					{footerMenu.items.map((item, index) => {
-						const href = getItemHref(item);
+						const href = resolveFooterHref(getItemHref(item));
 						const title = getItemTitle(item, index);
+						const isPrivacyLink = isPrivacyHref(href);
 						return (
-							<a href={href} class="menu_item">
+							<a href={href} class="menu_item" target={isPrivacyLink ? '_blank' : undefined} rel={isPrivacyLink ? 'noopener noreferrer' : undefined}>
 								{title}
 							</a>
 						);
@@ -164,5 +189,5 @@ function getItemTitle(item: MenuItem, index: number) {
 			{sede2 && <div class="footer_location_block" set:html={sede2} />}
 		</section>
 	)}
-	<div class="footer_data" set:html={footerText} />
+	<div class="footer_data" set:html={footerTextHtml} />
 </footer>
