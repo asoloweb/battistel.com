@@ -190,4 +190,25 @@ function getItemTitle(item: MenuItem, index: number) {
 		</section>
 	)}
 	<div class="footer_data" set:html={footerTextHtml} />
+	<div class="footer_data">
+		<a href="https://www.iubenda.com/privacy-policy/83695289" class="iubenda-white iubenda-noiframe iubenda-embed" title="Privacy Policy ">Privacy Policy</a>
+		&nbsp;|&nbsp;
+		<a href="https://www.iubenda.com/privacy-policy/83695289/cookie-policy" class="iubenda-white iubenda-noiframe iubenda-embed" title="Cookie Policy ">Cookie Policy</a>
+		<script is:inline type="text/javascript">
+			(function (w, d) {
+				var loader = function () {
+					var s = d.createElement('script'), tag = d.getElementsByTagName('script')[0];
+					s.src = 'https://cdn.iubenda.com/iubenda.js';
+					tag.parentNode.insertBefore(s, tag);
+				};
+				if (w.addEventListener) {
+					w.addEventListener('load', loader, false);
+				} else if (w.attachEvent) {
+					w.attachEvent('onload', loader);
+				} else {
+					w.onload = loader;
+				}
+			})(window, document);
+		</script>
+	</div>
 </footer>
