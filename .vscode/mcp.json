@@ -5,12 +5,20 @@
       "args": ["-y", "directus-mcp-server"],
       "env": {
         "DIRECTUS_URL": "https://battistel.prometeo.com",
-        "DIRECTUS_TOKEN": "KC_e0A55cMfc6qolRd2WJLkRRg4BUZPt"
+        "DIRECTUS_TOKEN": "BPgx6aGtWTNBUerFhAqMhN6QF6jh35z9"
       }
     },
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"]
+    },
+    "battistel-admin": {
+      "command": "npx",
+      "args": ["-y", "directus-mcp-server"],
+      "env": {
+        "DIRECTUS_URL": "https://battistel-admin.prometeo.com",
+        "DIRECTUS_TOKEN": "5tnczDkJgT_UXjc3CzfkZLFoXpCJfDSw"
+      }
     }
   }
 }

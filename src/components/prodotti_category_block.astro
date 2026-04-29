@@ -385,18 +385,39 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		const clearButton = document.querySelector('[data-clear-filters]');
 		const selectedCategoryPillsContainer = document.querySelector('[data-category-tag-pills-selected]');
 		const selectedCategoryTagWrap = document.querySelector('[data-category-tag-wrap]');
-		let selectedTag = '';
+		const selectedTags = new Set();
 
 		const createTagPillButton = (tag, label) => {
+			const isAll = tag === '';
+			const isActive = isAll ? selectedTags.size === 0 : selectedTags.has(tag);
 			const button = document.createElement('button');
 			button.type = 'button';
 			button.className = 'products_tag_pill';
-			button.textContent = label;
+			if (isActive) button.classList.add('is-active');
 			button.setAttribute('data-tag-pill', tag);
-			button.setAttribute('aria-pressed', selectedTag === tag ? 'true' : 'false');
-			if (selectedTag === tag) button.classList.add('is-active');
+			button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+
+			const labelSpan = document.createElement('span');
+			labelSpan.className = 'products_tag_pill_label';
+			labelSpan.textContent = label;
+			button.appendChild(labelSpan);
+
+			if (isActive && !isAll) {
+				const removeSpan = document.createElement('span');
+				removeSpan.className = 'products_tag_pill_remove';
+				removeSpan.setAttribute('aria-hidden', 'true');
+				removeSpan.textContent = '×';
+				button.appendChild(removeSpan);
+			}
+
 			button.addEventListener('click', () => {
-				selectedTag = selectedTag === tag ? '' : tag;
+				if (isAll) {
+					selectedTags.clear();
+				} else if (selectedTags.has(tag)) {
+					selectedTags.delete(tag);
+				} else {
+					selectedTags.add(tag);
+				}
 				applyFilters();
 			});
 			return button;
@@ -411,7 +432,9 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 				splitValues(card.getAttribute('data-tags')).forEach((tag) => availableTags.add(tag));
 			});
 
-			if (selectedTag && !availableTags.has(selectedTag)) selectedTag = '';
+			selectedTags.forEach((tag) => {
+				if (!availableTags.has(tag)) selectedTags.delete(tag);
+			});
 
 			if (availableTags.size === 0) {
 				selectedCategoryTagWrap.hidden = true;
@@ -428,7 +451,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		};
 
 		const updateClearButton = () => {
-			const hasFilters = Boolean(selectedTag);
+			const hasFilters = selectedTags.size > 0;
 			if (clearButton instanceof HTMLElement) clearButton.style.visibility = hasFilters ? 'visible' : 'hidden';
 		};
 
@@ -437,7 +460,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 			let visibleCount = 0;
 			cards.forEach((card) => {
 				const tags = splitValues(card.getAttribute('data-tags'));
-				const tagsMatch = !selectedTag || tags.includes(selectedTag);
+				const tagsMatch = selectedTags.size === 0 || Array.from(selectedTags).every((tag) => tags.includes(tag));
 				const match = tagsMatch;
 				card.style.display = match ? '' : 'none';
 				if (match) visibleCount += 1;
@@ -450,7 +473,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 
 		if (clearButton instanceof HTMLElement) {
 			clearButton.addEventListener('click', () => {
-				selectedTag = '';
+				selectedTags.clear();
 				applyFilters();
 			});
 		}
@@ -497,6 +520,35 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		font-size: 13px;
 		font-weight: bold;
 		cursor: pointer;
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.products_tag_pills :global(.products_tag_pill_label) {
+		display: inline-block;
+	}
+
+	.products_tag_pills :global(.products_tag_pill.is-active) {
+		padding-right: 32px;
+	}
+
+	.products_tag_pills :global(.products_tag_pill_remove) {
+		position: absolute;
+		right: 8px;
+		top: 4px;
+		font-size: 12px;
+		line-height: 1;
+		font-weight: 700;
+		pointer-events: none;
+		background: #000;
+		padding: 5px;
+		border-radius: 100%;
+		height: 20px;
+		width: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.products_tag_pills :global(.products_tag_pill.is-active) {
@@ -561,7 +613,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 	a.products_card:hover {
 		transform: translateY(-3px);
 		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
-		color: #d77701;
+		color: var(--arancione-battistel);
 	}
 
 	.products_subcategory_media,
@@ -582,7 +634,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 	.products_subcategory_title,
 	.products_card_title {
 		margin: 0;
-		font-size: 24px;
+		font-size: 15px;
 		line-height: 1.15;
 		text-align: center;
 	}
@@ -618,7 +670,8 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 	@media (max-width: 760px) {
 		.products_subcategories_grid,
 		.products_grid {
-			grid-template-columns: 1fr;
+			grid-template-columns: 1fr 1fr;
+			gap: 12px;
 		}
 
 		.products_results_head {

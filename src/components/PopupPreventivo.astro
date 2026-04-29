@@ -78,12 +78,12 @@ try {
 					<div class="quote_popup_grid">
 						<label class="quote_popup_field">
 							<span>Telefono</span>
-							<input name="telefono" type="tel" autocomplete="tel" />
+							<input name="telefono" type="tel" autocomplete="tel" required />
 						</label>
 
 						<label class="quote_popup_field">
 							<span>Prodotto di interesse</span>
-							<input name="product_title" type="text" autocomplete="off" placeholder="Es. Bardahl XTC C60 5W40" />
+							<input name="product_title" type="text" autocomplete="off" required placeholder="Es. Bardahl XTC C60 5W40" />
 						</label>
 					</div>
 
@@ -294,7 +294,7 @@ try {
 
 	.quote_popup_intro {
 		padding: 52px 44px;
-		background: linear-gradient(140deg, #0f3271 0%, #194f9f 100%);
+		background: var(--blu-battistel);
 		color: #fff;
 		display: flex;
 		flex-direction: column;

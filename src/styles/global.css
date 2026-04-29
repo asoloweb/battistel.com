@@ -24,6 +24,7 @@
 
 :root {
   --arancione-battistel: #ffa300;
+  --blu-battistel: #1f3c84;
   --oro: #c1a776;
   --bianco: #ffffff;
   --nero: #0b0b0b;
@@ -138,7 +139,7 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: transparent;
   border-radius: 999px;
-  padding: 8px 14px;
+  padding: 5px 14px;
   font: inherit;
   color: #fff;
   cursor: pointer;
@@ -151,12 +152,17 @@ a {
 }
 
 .site-header-fixed {
-  background-color: #1c468c;
+  background-color: var(--blu-battistel);
   position: fixed;
+  min-height: auto;
 }
 
 .site-header-fixed .site-header-topbar-inner {
   background-color: var(--arancione-battistel);
+}
+
+.site-header-fixed .site-header-topbar-inner {
+  display: none;
 }
 
 .site-header-fixed .site-header-topbar {
@@ -362,7 +368,7 @@ a {
   justify-content: center;
   height: 600px;
   flex-direction: column;
-  background-color: #1c468c;
+  background-color: var(--blu-battistel);
   border-radius: 0;
 }
 
@@ -487,18 +493,40 @@ a {
 
 @media (max-width: 640px) {
 
+  .site-header-topbar-inner {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+
+  .site-header-topbar-text :where(p) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    margin: 0;
+    flex-direction: column;
+  }
+
+  .site-header-topbar-actions {
+    flex-direction: column;
+  }
+
   .MenuItemsContainer {
     position: absolute;
-    background: #000000de;
+    background: var(--blu-battistel);
     display: none;
     flex-direction: column;
     z-index: 99999999;
     padding: 20px;
-    border-radius: 20px;
-    top: 142px;
-    width: calc(100% - 20px);
-    left: 10px;
+    border-radius: 0px;
+    top: 189px;
+    width: 100%;
+    left: 0px;
     color: var(--arancione-battistel);
+  }
+
+  .site-header-fixed .MenuItemsContainer {
+    top: 95px;
   }
 
   .MenuItemsContainer a {
@@ -522,6 +550,18 @@ a {
   .site-footer {
     height: auto;
     padding: 48px 16px 24px;
+  }
+
+  .page_header_inner h1 {
+    font-size: 32px;
+    margin: 0;
+    margin-bottom: 20px;
+    margin-top: 70px;
+  }
+
+  .content_block_hero_block {
+    padding-left: 20px;
+    padding-right: 20px;
   }
 
   .site-footer nav {

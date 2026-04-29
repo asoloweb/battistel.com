@@ -19,13 +19,13 @@ const resolvedTitle = isHomePage
 	? brandTitle
 	: `${brandTitle} - ${pageTitle || seoTitle || 'Pagina'}`;
 
-let faviconSrc = '/favicon_battistel.svg';
+let faviconSrc = '/favicon_fiamma.svg?v=1';
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<link rel="icon" href={faviconSrc} />
+		<link rel="icon" type="image/svg+xml" href={faviconSrc} />
 		<link rel="shortcut icon" href={faviconSrc} />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />

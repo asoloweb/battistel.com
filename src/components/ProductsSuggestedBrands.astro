@@ -5,7 +5,12 @@ type Brand = {
 	id?: number;
 	nome_marchio?: string;
 	logo_marchio?: string | { id?: string | null } | null;
+	url_marchio?: string;
 	marchio_suggerito?: boolean | number | null;
+};
+
+type Options = {
+	products_suggested_brands_title_html?: string;
 };
 
 function resolveAssetId(value: Brand['logo_marchio']) {
@@ -26,11 +31,29 @@ function resolveLogoSrc(value: Brand['logo_marchio']) {
 	});
 }
 
-let suggestedBrands: { name: string; logoSrc: string }[] = [];
+function resolveBrandUrl(value?: string) {
+	const url = (value || '').trim();
+	if (!url) return '';
+	if (url.startsWith('http://') || url.startsWith('https://')) return url;
+	return `https://${url}`;
+}
+
+let suggestedBrands: { name: string; logoSrc: string; url: string }[] = [];
+let suggestedBrandsTitleHtml = 'Collaboriamo con le principali societa di riferimento.';
 
 try {
+	const optionsUrl = directusItemsUrl('options');
+	optionsUrl.searchParams.set('fields', 'products_suggested_brands_title_html');
+	const optionsResponse = await directusFetch(optionsUrl);
+	if (optionsResponse.ok) {
+		const optionsPayload = await optionsResponse.json();
+		const options = optionsPayload?.data as Options | undefined;
+		const titleHtml = options?.products_suggested_brands_title_html?.trim();
+		if (titleHtml) suggestedBrandsTitleHtml = titleHtml;
+	}
+
 	const brandsUrl = directusItemsUrl('Marchi');
-	brandsUrl.searchParams.set('fields', 'id,nome_marchio,logo_marchio,marchio_suggerito');
+	brandsUrl.searchParams.set('fields', 'id,nome_marchio,logo_marchio,url_marchio,marchio_suggerito');
 	brandsUrl.searchParams.set('filter[marchio_suggerito][_eq]', 'true');
 	brandsUrl.searchParams.set('sort', 'sort,nome_marchio');
 	brandsUrl.searchParams.set('limit', '-1');
@@ -42,6 +65,7 @@ try {
 			.map((brand) => ({
 				name: brand.nome_marchio?.trim() || '',
 				logoSrc: resolveLogoSrc(brand.logo_marchio),
+				url: resolveBrandUrl(brand.url_marchio),
 			}))
 			.filter((brand) => brand.name);
 	}
@@ -55,20 +79,29 @@ try {
 		<div class="products_suggested_brands_inner">
 			<div class="products_suggested_brands_intro">
 				<div class="products_suggested_brands_kicker">Marchi suggeriti</div>
-				<h2 class="products_suggested_brands_title">Collaboriamo con le principali societa di riferimento.</h2>
-				<p class="products_suggested_brands_text">Scopri il prodotto adatto alle tue esigenze:</p>
+				<h2 class="products_suggested_brands_title" set:html={suggestedBrandsTitleHtml}></h2>
 			</div>
 
 			<div class="products_suggested_brands_content">
 				<div class="products_suggested_brands_list" aria-label="Marchi suggeriti">
 					{suggestedBrands.map((brand) => (
-						<span class="products_suggested_brands_item" title={brand.name}>
-							{brand.logoSrc ? (
-								<img src={brand.logoSrc} alt={brand.name} loading="lazy" />
-							) : (
-								<span>{brand.name}</span>
-							)}
-						</span>
+						brand.url ? (
+							<a class="products_suggested_brands_item" title={brand.name} href={brand.url} target="_blank" rel="noopener noreferrer">
+								{brand.logoSrc ? (
+									<img src={brand.logoSrc} alt={brand.name} loading="lazy" />
+								) : (
+									<span>{brand.name}</span>
+								)}
+							</a>
+						) : (
+							<span class="products_suggested_brands_item" title={brand.name}>
+								{brand.logoSrc ? (
+									<img src={brand.logoSrc} alt={brand.name} loading="lazy" />
+								) : (
+									<span>{brand.name}</span>
+								)}
+							</span>
+						)
 					))}
 				</div>
 			</div>
@@ -94,7 +127,7 @@ try {
 
 	.products_suggested_brands_intro {
 		padding: 44px 48px;
-		background: linear-gradient(135deg, #0c2f66 0%, #184b99 100%);
+		background: var(--blu-battistel);
 		color: #fff;
 		display: flex;
 		flex-direction: column;
@@ -115,13 +148,6 @@ try {
 		font-size: clamp(30px, 3vw, 44px);
 		line-height: 1.05;
 		font-weight: 700;
-	}
-
-	.products_suggested_brands_text {
-		margin: 0;
-		font-size: 20px;
-		line-height: 1.55;
-		color: rgba(255, 255, 255, 0.92);
 	}
 
 	.products_suggested_brands_content {
@@ -154,6 +180,7 @@ try {
 		width: auto;
 		height: 70px;
 		min-height: 70px;
+		text-decoration: none;
 	}
 
 	.products_suggested_brands_item img {
@@ -175,10 +202,6 @@ try {
 
 		.products_suggested_brands_title {
 			padding-bottom: 16px;
-		}
-
-		.products_suggested_brands_text {
-			font-size: 18px;
 		}
 
 		.products_suggested_brands_item {
