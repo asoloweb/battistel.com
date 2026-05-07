@@ -161,26 +161,28 @@ function getItemTitle(item: MenuItem, index: number) {
 
 <footer class="site-footer">
 	<nav aria-label="Menu footer">
-		<div>
-			<a href="/">
-				<img class="MenuLogo" src={logoLightSrc} alt="Logo" />
-			</a>
-		</div>
-		<div class="FooterItemsContainer">
-			{footerMenus.map((footerMenu) => (
-				<div class="FooterMenuColumn">
-					{footerMenu.items.map((item, index) => {
-						const href = resolveFooterHref(getItemHref(item));
-						const title = getItemTitle(item, index);
-						const isPrivacyLink = isPrivacyHref(href);
-						return (
-							<a href={href} class="menu_item" target={isPrivacyLink ? '_blank' : undefined} rel={isPrivacyLink ? 'noopener noreferrer' : undefined}>
-								{title}
-							</a>
-						);
-					})}
-				</div>
-			))}
+		<div class="footer_nav_inner">
+			<div>
+				<a href="/">
+					<img class="MenuLogo" src={logoLightSrc} alt="Logo" />
+				</a>
+			</div>
+			<div class="FooterItemsContainer">
+				{footerMenus.map((footerMenu) => (
+					<div class="FooterMenuColumn">
+						{footerMenu.items.map((item, index) => {
+							const href = resolveFooterHref(getItemHref(item));
+							const title = getItemTitle(item, index);
+							const isPrivacyLink = isPrivacyHref(href);
+							return (
+								<a href={href} class="menu_item" target={isPrivacyLink ? '_blank' : undefined} rel={isPrivacyLink ? 'noopener noreferrer' : undefined}>
+									{title}
+								</a>
+							);
+						})}
+					</div>
+				))}
+			</div>
 		</div>
 	</nav>
 	{(sede1 || sede2) && (
@@ -190,9 +192,9 @@ function getItemTitle(item: MenuItem, index: number) {
 		</section>
 	)}
 	<div class="footer_data" set:html={footerTextHtml} />
-	<div class="footer_data">
+	<div class="footer_links">
 		<a href="https://www.iubenda.com/privacy-policy/83695289" class="iubenda-white iubenda-noiframe iubenda-embed" title="Privacy Policy ">Privacy Policy</a>
-		&nbsp;|&nbsp;
+		<span>&nbsp;|&nbsp;</span>
 		<a href="https://www.iubenda.com/privacy-policy/83695289/cookie-policy" class="iubenda-white iubenda-noiframe iubenda-embed" title="Cookie Policy ">Cookie Policy</a>
 		<script is:inline type="text/javascript">
 			(function (w, d) {

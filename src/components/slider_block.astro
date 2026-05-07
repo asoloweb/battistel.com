@@ -302,4 +302,40 @@ function resolveVideoSrc(value: string | undefined) {
 			padding: 16px 30px;
 		}
 	}
+
+	@media (max-height: 820px) {
+		.single_slide h1 {
+			font-size: clamp(34px, 5.2vw, 76px);
+		}
+
+		.single_slide h2 {
+			font-size: clamp(20px, 2.1vw, 30px);
+		}
+
+		.slider_button.MainButton {
+			font-size: clamp(16px, 1.3vw, 20px);
+			padding: 16px 30px;
+		}
+	}
+
+	@media (max-height: 700px) {
+		.single_slide h1 {
+			font-size: clamp(28px, 4.6vw, 58px);
+			line-height: 1;
+		}
+
+		.single_slide h2 {
+			font-size: clamp(18px, 1.9vw, 24px);
+			line-height: 1.15;
+		}
+
+		.swiper-slide-container {
+			gap: 12px;
+		}
+
+		.slider_button.MainButton {
+			font-size: 15px;
+			padding: 12px 22px;
+		}
+	}
 </style>

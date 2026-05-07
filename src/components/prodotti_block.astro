@@ -409,6 +409,7 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 						<p class="products_selected_category_value" data-selected-category-name>Tutti i prodotti</p>
 						<div class="products_category_tags" data-category-tag-wrap hidden>
 							<div class="products_tag_pills" data-category-tag-pills-selected></div>
+							<button class="products_tag_pills_toggle" type="button" data-tag-pills-toggle aria-expanded="false" aria-label="Espandi filtri tag">+</button>
 						</div>
 					</div>
 
@@ -469,6 +470,7 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 		const selectedCategoryElement = document.querySelector('[data-selected-category-name]');
 		const selectedCategoryPillsContainer = document.querySelector('[data-category-tag-pills-selected]');
 		const selectedCategoryTagWrap = document.querySelector('[data-category-tag-wrap]');
+		const tagPillsToggleButton = document.querySelector('[data-tag-pills-toggle]');
 		const searchForm = document.querySelector('[data-products-search-form]');
 		const searchInput = document.querySelector('[data-products-search]');
 		const productsLayout = document.querySelector('[data-products-layout]');
@@ -485,6 +487,22 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 		const selectedTags = new Set();
 		let searchTerm = '';
 		let activeSearchTerm = '';
+
+		const updateTagPillsToggle = () => {
+			if (!(selectedCategoryTagWrap instanceof HTMLElement) || !(tagPillsToggleButton instanceof HTMLButtonElement)) return;
+			if (selectedCategoryTagWrap.hidden) {
+				tagPillsToggleButton.hidden = true;
+				selectedCategoryTagWrap.classList.remove('is-expanded');
+				tagPillsToggleButton.setAttribute('aria-expanded', 'false');
+				tagPillsToggleButton.textContent = '+';
+				return;
+			}
+
+			tagPillsToggleButton.hidden = false;
+			const expanded = selectedCategoryTagWrap.classList.contains('is-expanded');
+			tagPillsToggleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+			tagPillsToggleButton.textContent = expanded ? '-' : '+';
+		};
 
 		const updateCategoryUI = () => {
 			categoryButtons.forEach((button) => {
@@ -597,6 +615,7 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 
 			if (selectedCategory === 'all' || activeSearchTerm) {
 				selectedCategoryTagWrap.hidden = true;
+				updateTagPillsToggle();
 				return;
 			}
 
@@ -608,6 +627,7 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 
 			if (availableTags.length === 0) {
 				selectedCategoryTagWrap.hidden = true;
+				updateTagPillsToggle();
 				return;
 			}
 
@@ -618,6 +638,8 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 				.forEach((tag) => {
 					selectedCategoryPillsContainer.appendChild(createTagPillButton(tag, tagLabelMap.get(tag) || tag));
 				});
+
+			updateTagPillsToggle();
 		};
 
 		const updateClearButton = () => {
@@ -686,12 +708,20 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 			clearButton.addEventListener('click', () => {
 				selectedCategory = defaultCategory;
 				selectedTags.clear();
+				if (selectedCategoryTagWrap instanceof HTMLElement) selectedCategoryTagWrap.classList.remove('is-expanded');
 				searchTerm = '';
 				activeSearchTerm = '';
 				if (searchInput instanceof HTMLInputElement) {
 					searchInput.value = '';
 				}
 				applyFilters();
+			});
+		}
+
+		if (tagPillsToggleButton instanceof HTMLButtonElement && selectedCategoryTagWrap instanceof HTMLElement) {
+			tagPillsToggleButton.addEventListener('click', () => {
+				selectedCategoryTagWrap.classList.toggle('is-expanded');
+				updateTagPillsToggle();
 			});
 		}
 
@@ -1000,6 +1030,25 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
+		justify-content: center;
+	}
+
+	.products_tag_pills_toggle {
+		display: none;
+		appearance: none;
+		border: 1px solid rgba(0, 0, 0, 0.2);
+		background: #fff;
+		color: var(--nero);
+		width: 32px;
+		height: 32px;
+		border-radius: 999px;
+		font-size: 20px;
+		line-height: 1;
+		font-weight: 700;
+		cursor: pointer;
+		margin: 8px auto 0;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.products_tag_pills :global(.products_tag_pill) {
@@ -1052,6 +1101,25 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 	.products_tag_pills :global(.products_tag_pill.is-active) {
 		background: var(--arancione-battistel);
 		color: #fff;
+	}
+
+	@media (max-width: 768px) {
+		.products_category_tags {
+			display: block;
+		}
+
+		.products_category_tags .products_tag_pills {
+			max-height: 48px;
+			overflow: hidden;
+		}
+
+		.products_category_tags.is-expanded .products_tag_pills {
+			max-height: 1000px;
+		}
+
+		.products_tag_pills_toggle {
+			display: inline-flex;
+		}
 	}
 
 	.products_results {

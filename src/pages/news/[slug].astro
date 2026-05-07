@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
+import { DIRECTUS_URL, directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
 import { slugifyNewsTitle } from '../../lib/news-slug';
 
 type NewsItem = {
@@ -8,11 +8,23 @@ type NewsItem = {
 	status: string;
 	titolo: string;
 	sottotitolo?: string;
+	editor?: string;
 	video?: string;
 	immagine_copertina?: string;
 	date_created: string;
 	link?: string;
 	label_link?: string;
+	documenti?: NewsDocumentRelation[];
+};
+
+type NewsDocument = {
+	id?: string;
+	title?: string | null;
+	filename_download?: string | null;
+};
+
+type NewsDocumentRelation = {
+	directus_files_id?: NewsDocument | string | null;
 };
 
 type Page = {
@@ -44,11 +56,30 @@ function formatNewsDate(value: string | undefined) {
 	return parts.join(' ');
 }
 
+function getDocuments(item: NewsItem) {
+	if (!Array.isArray(item?.documenti)) return [];
+	const documents = item.documenti
+		.map((entry) => {
+			const file = entry?.directus_files_id && typeof entry.directus_files_id === 'object' ? entry.directus_files_id : null;
+			const id = file?.id?.trim() || '';
+			if (!id) return null;
+			const label = file?.title?.trim() || file?.filename_download?.trim() || 'Documento';
+			return {
+				id,
+				label,
+				href: `${DIRECTUS_URL}/assets/${id}`,
+			};
+		})
+		.filter((entry): entry is { id: string; label: string; href: string } => Boolean(entry));
+
+	return Array.from(new Map(documents.map((entry) => [entry.id, entry])).values());
+}
+
 export async function getStaticPaths() {
 	const url = directusItemsUrl('News');
 	url.searchParams.set(
 		'fields',
-		'id,status,titolo,sottotitolo,video,immagine_copertina,date_created,link,label_link'
+		'id,status,titolo,sottotitolo,editor,video,immagine_copertina,date_created,link,label_link,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.filename_download'
 	);
 	url.searchParams.set('filter[status][_eq]', 'published');
 	url.searchParams.set('sort', '-date_created');
@@ -98,6 +129,7 @@ const defaultHeaderImage = 'https://battistel.prometeo.com/assets/fc2a2b77-bff1-
 const headerImage = newsHeaderImage
 	? resolveImageSrc(newsHeaderImage, { width: 1920, height: 1080, quality: 80, format: 'webp' })
 	: defaultHeaderImage;
+const documents = getDocuments(item);
 ---
 
 <BaseLayout title={item.titolo || 'News'}>
@@ -113,10 +145,23 @@ const headerImage = newsHeaderImage
 			{newsDate && <p class="news_single_date">{newsDate}</p>}
 			{item.titolo && <h1 class="news_single_title">{item.titolo}</h1>}
 			{item.sottotitolo && <p class="news_single_subtitle">{item.sottotitolo}</p>}
+			{item.editor && <div class="news_single_text" set:html={item.editor}></div>}
 			{coverImage && (
 				<div class="news_single_media">
 					<img src={coverImage} alt={item.titolo || ''} loading="eager" />
 				</div>
+			)}
+			{documents.length > 0 && (
+				<section class="news_single_documents">
+					<h2 class="news_single_documents_title">Documenti</h2>
+					<div class="news_single_documents_list">
+						{documents.map((doc) => (
+							<a class="news_single_document_link" href={doc.href} target="_blank" rel="noopener noreferrer">
+								{doc.label}
+							</a>
+						))}
+					</div>
+				</section>
 			)}
 			{item.link && item.label_link && (
 				<a class="MainButton news_single_link" href={item.link}>
@@ -208,6 +253,14 @@ const headerImage = newsHeaderImage
 		line-height: 1.35;
 		max-width: 900px;
 	}
+	.news_single_text {
+		margin: 0 0 24px;
+		font-size: 1.06rem;
+		line-height: 1.7;
+	}
+	.news_single_text :global(p) {
+		margin: 0 0 14px;
+	}
 	.news_single_media {
 		margin: 0 0 30px;
 		border-radius: 22px;
@@ -221,6 +274,34 @@ const headerImage = newsHeaderImage
 	.news_single_link {
 		margin-top: 30px;
 		display: inline-flex;
+	}
+	.news_single_documents {
+		margin-top: 26px;
+	}
+	.news_single_documents_title {
+		margin: 0 0 14px;
+		font-size: 1.3rem;
+	}
+	.news_single_documents_list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px;
+	}
+	.news_single_document_link {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 14px;
+		border-radius: 999px;
+		text-decoration: none;
+		font-weight: 600;
+		color: var(--blu-battistel);
+		background: rgba(239, 109, 36, 0.14);
+		transition: transform 180ms ease, background-color 180ms ease;
+	}
+	.news_single_document_link:hover {
+		transform: translateY(-2px);
+		background: rgba(239, 109, 36, 0.24);
 	}
 	.news_grid_section {
 		padding: 40px 20px 60px;

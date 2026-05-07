@@ -57,18 +57,18 @@ try {
 				<input type="hidden" name="category_name" value={categoryName} />
 
 				<label class="product_inquiry_field">
-					<span>Ragione sociale</span>
+					<span>Ragione sociale *</span>
 					<input name="ragione_sociale" type="text" autocomplete="organization" required />
 				</label>
 
 				<div class="product_inquiry_grid">
 					<label class="product_inquiry_field">
-						<span>Referente</span>
+						<span>Referente *</span>
 						<input name="referente" type="text" autocomplete="name" required />
 					</label>
 
 					<label class="product_inquiry_field">
-						<span>Email</span>
+						<span>Email *</span>
 						<input name="email" type="email" autocomplete="email" required />
 					</label>
 				</div>
@@ -79,14 +79,14 @@ try {
 				</label>
 
 				<label class="product_inquiry_field">
-					<span>Messaggio</span>
+					<span>Messaggio *</span>
 					<textarea name="messaggio" rows={6} required placeholder={`Vorrei maggiori informazioni su ${productTitle}`}></textarea>
 				</label>
 
 				<label class="product_inquiry_privacy">
 					<input name="privacy" type="checkbox" required />
 					<span>
-						Accetto la <a href="https://www.iubenda.com/privacy-policy/83695289" target="_blank" rel="noopener noreferrer">privacy policy</a>
+						Accetto la <a href="https://www.iubenda.com/privacy-policy/83695289" target="_blank" rel="noopener noreferrer">privacy policy</a> *
 					</span>
 				</label>
 

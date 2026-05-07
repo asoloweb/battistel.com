@@ -167,15 +167,23 @@ const cards = categories
 
 	.categorie_prodotti_grid {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 24px;
+	}
+
+	@media (max-width: 1024px) {
+		.categorie_prodotti_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
 	}
 
 	.categorie_prodotti_card {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		padding: 55px 40px;
+		padding: clamp(14px, 2.2vw, 28px);
+		width: 100%;
+		box-sizing: border-box;
 		background: var(--bianco);
 		border-radius: 18px;
 		color: var(--nero);
@@ -193,6 +201,7 @@ const cards = categories
 		overflow: hidden;
 		border-radius: 12px;
 		aspect-ratio: 4 / 3;
+		width: 100%;
 		background: #fff;
 	}
 
@@ -217,19 +226,9 @@ const cards = categories
 		text-align: center;
 	}
 
-	@media (max-width: 1024px) {
-		.categorie_prodotti_grid {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-	}
-
 	@media (max-width: 640px) {
-		.categorie_prodotti_grid {
-			grid-template-columns: 1fr 1fr;
-		}
-
 		.categorie_prodotti_card {
-			padding: 20px;
+			padding: 2%;
 		}
 	}
 </style>

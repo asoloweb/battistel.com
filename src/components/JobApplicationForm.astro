@@ -26,12 +26,12 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 
 	<form class="job_application_form" method="post" data-webhook-url={webhookUrl}>
 		<label class="contact_form_field">
-			<span>Nome e cognome</span>
+			<span>Nome e cognome *</span>
 			<input name="nome_cognome" type="text" autocomplete="name" required />
 		</label>
 
 		<label class="contact_form_field">
-			<span>Email</span>
+			<span>Email *</span>
 			<input name="email" type="email" autocomplete="email" required />
 		</label>
 
@@ -41,7 +41,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 		</label>
 
 		<label class="contact_form_field">
-			<span>Ruolo di interesse</span>
+			<span>Ruolo di interesse *</span>
 			<select name="ruolo" required>
 				<option value="">Seleziona un ruolo</option>
 				{lavori.map((lavoro) => (
@@ -52,14 +52,14 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 		</label>
 
 		<label class="contact_form_field">
-			<span>Messaggio</span>
+			<span>Messaggio *</span>
 			<textarea name="messaggio" rows={6} required></textarea>
 		</label>
 
 		<label class="contact_form_privacy">
 			<input name="privacy" type="checkbox" required />
 			<span>
-				Accetto la <a href="https://www.iubenda.com/privacy-policy/83695289" target="_blank" rel="noopener noreferrer">privacy policy</a>
+				Accetto la <a href="https://www.iubenda.com/privacy-policy/83695289" target="_blank" rel="noopener noreferrer">privacy policy</a> *
 			</span>
 		</label>
 
@@ -103,7 +103,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 				const messaggio = String(formData.get('messaggio') || '').trim();
 
 				const contattoLines = [
-					'Tipo richiesta: candidatura',
+					'Tipo richiesta: lavoro',
 					`Nome e cognome: ${nomeCognome}`,
 					`Email: ${email}`,
 					`Telefono: ${telefono || '-'}`,
@@ -113,7 +113,8 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 				const contatto = contattoLines.join('\n');
 
 				const payload = {
-					tipo_richiesta: 'candidatura',
+					form_type: 'lavoro',
+					tipo_richiesta: 'lavoro',
 					contatto,
 					nome_cognome: nomeCognome,
 					email,

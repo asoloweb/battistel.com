@@ -62,7 +62,7 @@ const { page }: Props = Astro.props;
 			<ProductsSuggestedBrands />
 			<PageContent page={page as any} showHeader={false} showContent={false} />
 		</>
-	) : page?.slug === 'professionisti' ? (
+	) : page?.slug === 'team' ? (
 		<>
 			<PageContent page={page as any} showContent={false} />
 			<ProfessionistiBlock />

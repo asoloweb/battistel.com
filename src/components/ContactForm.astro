@@ -20,12 +20,12 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 
 	<form class="contact_form_form" method="post" data-webhook-url={webhookUrl}>
 		<label class="contact_form_field">
-			<span>Ragione sociale</span>
+			<span>Ragione sociale *</span>
 			<input name="ragione_sociale" type="text" autocomplete="organization" required />
 		</label>
 
 		<label class="contact_form_field">
-			<span>Email</span>
+			<span>Email *</span>
 			<input name="email" type="email" autocomplete="email" required />
 		</label>
 
@@ -35,19 +35,19 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 		</label>
 
 		<label class="contact_form_field">
-			<span>Referente</span>
+			<span>Referente *</span>
 			<input name="referente" type="text" autocomplete="name" required />
 		</label>
 
 		<label class="contact_form_field">
-			<span>Messaggio</span>
+			<span>Messaggio *</span>
 			<textarea name="messaggio" rows={6} required></textarea>
 		</label>
 
 		<label class="contact_form_privacy">
 			<input name="privacy" type="checkbox" required />
 			<span>
-				Accetto la <a href="https://www.iubenda.com/privacy-policy/83695289" target="_blank" rel="noopener noreferrer">privacy policy</a>
+				Accetto la <a href="https://www.iubenda.com/privacy-policy/83695289" target="_blank" rel="noopener noreferrer">privacy policy</a> *
 			</span>
 		</label>
 
@@ -91,6 +91,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 				const messaggio = String(formData.get('messaggio') || '').trim();
 
 				const contattoLines = [
+					'Tipo richiesta: contatto',
 					`Ragione sociale: ${ragioneSociale}`,
 					`Email: ${email}`,
 					`Telefono: ${telefono || '-'}`,
@@ -100,6 +101,8 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 				const contatto = contattoLines.join('\n');
 
 				const payload = {
+					form_type: 'contatto',
+					tipo_richiesta: 'contatto',
 					contatto,
 					ragione_sociale: ragioneSociale,
 					email,

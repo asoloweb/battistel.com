@@ -51,6 +51,17 @@ type TagRelation = {
 	Tags_id?: Tag | number | null;
 };
 
+type ProductDocument = {
+	id?: string;
+	title?: string | null;
+	filename_download?: string | null;
+	type?: string | null;
+};
+
+type ProductDocumentRelation = {
+	directus_files_id?: ProductDocument | string | null;
+};
+
 type Product = {
 	id?: number;
 	status?: string;
@@ -64,6 +75,7 @@ type Product = {
 	Categoria_correlata?: CategoryRelation[];
 	varianti_prodotto?: VariantRelation[];
 	Tag?: TagRelation[];
+	documenti?: ProductDocumentRelation[];
 	[key: string]: unknown;
 };
 
@@ -105,7 +117,7 @@ async function fetchProductsPage(): Promise<ProductsPage | null> {
 async function fetchProducts(): Promise<Product[]> {
 	try {
 		const url = directusItemsUrl('Prodotti');
-		url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Tag.Tags_id.*');
+		url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Categoria_correlata.Categorie_id.*,Tag.Tags_id.*,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.filename_download,documenti.directus_files_id.type');
 		url.searchParams.set('filter[status][_eq]', 'published');
 		url.searchParams.set('limit', '-1');
 		url.searchParams.set('sort', 'sort,codice_prodotto');
@@ -251,6 +263,27 @@ function getTags(product: Product) {
 	return Array.from(new Set(tags));
 }
 
+function getDocuments(product: Product) {
+	if (!Array.isArray(product?.documenti)) return [];
+	const documents = product.documenti
+		.map((entry) => {
+			const file = entry?.directus_files_id && typeof entry.directus_files_id === 'object'
+				? entry.directus_files_id
+				: null;
+			const id = file?.id?.trim() || '';
+			if (!id) return null;
+			const label = file?.title?.trim() || file?.filename_download?.trim() || 'Documento';
+			return {
+				id,
+				label,
+				href: `${DIRECTUS_URL}/assets/${id}`,
+			};
+		})
+		.filter((entry): entry is { id: string; label: string; href: string } => Boolean(entry));
+
+	return Array.from(new Map(documents.map((entry) => [entry.id, entry])).values());
+}
+
 function splitCommaValues(value: string | undefined) {
 	if (!value) return [];
 	return value
@@ -272,7 +305,7 @@ function formatPrice(value: number | string | undefined) {
 
 export async function getStaticPaths() {
 	const url = directusItemsUrl('Prodotti');
-	url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Categoria_correlata.Categorie_id.*,varianti_prodotto.Varianti_id.*,Tag.Tags_id.*');
+	url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Categoria_correlata.Categorie_id.*,varianti_prodotto.Varianti_id.*,Tag.Tags_id.*,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.filename_download,documenti.directus_files_id.type');
 	url.searchParams.set('filter[status][_eq]', 'published');
 	url.searchParams.set('limit', '-1');
 	const response = await directusFetch(url);
@@ -288,11 +321,18 @@ export async function getStaticPaths() {
 		}));
 }
 
-const { product } = Astro.props as { product: Product };
+const { product: staticProduct } = Astro.props as { product: Product };
+const routeSlug = Astro.params.slug || '';
 const productsPage = await fetchProductsPage();
-const title = getProductTitle(product) || 'Prodotto';
 const pageHeaderImage = `${DIRECTUS_URL}/assets/491185c0-ede3-4ffd-b149-5872266922fa`;
 const allProducts = await fetchProducts();
+const allProductsSlugMap = buildProductSlugMap(allProducts);
+const liveProduct = allProducts.find((entry) => {
+	if (typeof entry?.id !== 'number') return false;
+	return allProductsSlugMap.get(entry.id) === routeSlug;
+});
+const product = liveProduct || staticProduct;
+const title = getProductTitle(product) || 'Prodotto';
 const brands = await fetchBrands();
 const brandLogoById = buildBrandLogoMap(brands);
 const imageSrc = resolveProductThumbnailSrc(product, {
@@ -307,10 +347,9 @@ const allCategories = await fetchCategories();
 const categories = getCategories(product);
 const variants = getVariants(product);
 const tags = getTags(product);
+const documents = getDocuments(product);
 const packaging = splitCommaValues(product?.imballo);
 const relatedCategories = getRelatedCategories(product);
-const fallbackRelatedCategories = categories.length > 1 ? categories.slice(1) : [];
-const effectiveRelatedCategories = relatedCategories.length > 0 ? relatedCategories : fallbackRelatedCategories;
 const categoryMap = new Map(
 	allCategories
 		.map((category) => {
@@ -338,7 +377,7 @@ const categoryMap = new Map(
 
 const relatedCategoryCards = Array.from(
 	new Map(
-		effectiveRelatedCategories
+		relatedCategories
 			.map((entry) => {
 				const node = categoryMap.get(String(entry.id));
 				if (!node) return null;
@@ -465,6 +504,18 @@ const relatedProducts = (primaryCategory
 							<div class="product_pills">
 								{tags.map((item) => (
 									<span class="product_pill">{item}</span>
+								))}
+							</div>
+						</div>
+					)}
+					{documents.length > 0 && (
+						<div class="product_pills_group">
+							<p class="product_pills_label">Documenti</p>
+							<div class="product_documents">
+								{documents.map((item) => (
+									<a class="product_document_link" href={item.href} target="_blank" rel="noopener noreferrer">
+										{item.label}
+									</a>
 								))}
 							</div>
 						</div>
@@ -653,6 +704,29 @@ const relatedProducts = (primaryCategory
 		color: var(--arancione-battistel);
 		font-size: 15px;
 		font-weight: 600;
+	}
+
+	.product_documents {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px;
+	}
+
+	.product_document_link {
+		display: inline-flex;
+		align-items: center;
+		padding: 10px 16px;
+		border-radius: 999px;
+		background: rgba(255, 106, 0, 0.12);
+		color: var(--arancione-battistel);
+		font-size: 14px;
+		font-weight: 700;
+		text-decoration: none;
+		transition: background 180ms ease;
+	}
+
+	.product_document_link:hover {
+		background: rgba(255, 106, 0, 0.22);
 	}
 
 	.product_hero_media {

@@ -55,6 +55,7 @@ interface Props {
 }
 
 const { titolo = 'Prodotti', filterCategorySlug, selectedCategoryLabel } = Astro.props as Props;
+const searchQueryRaw = (Astro.url.searchParams.get('q') || '').trim();
 
 function resolveImageSrc(value: string | undefined) {
 	return directusAssetUrl(value, {
@@ -247,6 +248,7 @@ const subcategoryCards = selectedCategoryNode
 				description: node.description,
 				href: `/prodotti/categoria/${encodeURIComponent(node.slug)}`,
 				imageSrc: CATEGORY_CARD_IMAGE || node.imageSrc,
+				slug: node.slug,
 			}))
 	: [];
 
@@ -297,6 +299,19 @@ const productsData = products
 	.filter((entry): entry is { title: string; href: string; imageSrc: string; categorySlugs: string[]; tags: { slug: string; label: string }[]; searchText: string } => Boolean(entry))
 	.filter((entry) => entry.categorySlugs.includes(filterCategorySlug));
 
+const subcategorySearchMap = new Map<string, string>();
+for (const card of subcategoryCards) {
+	const productsForCard = productsData.filter((entry) => entry.categorySlugs.includes(card.slug));
+	const searchText = [
+		card.title,
+		card.description,
+		...productsForCard.map((entry) => entry.searchText),
+	]
+		.join(' ')
+		.toLowerCase();
+	subcategorySearchMap.set(card.slug, searchText);
+}
+
 const sidebarTagMap = new Map<string, string>();
 for (const product of productsData) {
 	for (const tag of product.tags) {
@@ -316,32 +331,37 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 				]}
 				showGlobalSearch={true}
 				showQuoteButton={true}
-				searchAction="/prodotti"
-				searchPlaceholder="Cerca in tutti i prodotti"
+				searchAction={Astro.url.pathname}
+				searchPlaceholder={`Cerca in ${selectedCategoryLabel || 'categoria'}`}
+				searchValue={searchQueryRaw}
 			/>
 
 		<div class="products_selected_filters">
 			{!hasSubcategories && productsData.length > 0 && (
 				<div class="products_category_tags" data-category-tag-wrap>
 					<div class="products_tag_pills" data-category-tag-pills-selected></div>
+					<button class="products_tag_pills_toggle" type="button" data-tag-pills-toggle aria-expanded="false" aria-label="Espandi filtri tag">+</button>
 				</div>
 			)}
 		</div>
 
 		{hasSubcategories ? (
-			<div class="products_subcategories_grid">
-				{subcategoryCards.map((entry) => (
-					<a class="products_subcategory_card" href={entry.href}>
-						{entry.imageSrc && (
-							<div class="products_subcategory_media">
-								<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
-							</div>
-						)}
-						<h3 class="products_subcategory_title">{entry.title}</h3>
-						{entry.description && <p class="products_subcategory_description">{entry.description}</p>}
-					</a>
-				))}
-			</div>
+			<>
+				<div class="products_subcategories_grid">
+					{subcategoryCards.map((entry) => (
+						<a class="products_subcategory_card" href={entry.href} data-search={subcategorySearchMap.get(entry.slug) || entry.title.toLowerCase()}>
+							{entry.imageSrc && (
+								<div class="products_subcategory_media">
+									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+								</div>
+							)}
+							<h3 class="products_subcategory_title">{entry.title}</h3>
+							{entry.description && <p class="products_subcategory_description">{entry.description}</p>}
+						</a>
+					))}
+				</div>
+				<p class="products_empty_static products_empty_subcategories">Nessun risultato in questa categoria.</p>
+			</>
 		) : productsData.length > 0 ? (
 			<>
 				<div class="products_results_head">
@@ -370,6 +390,34 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 	</div>
 </section>
 
+<script is:inline define:vars={{ hasSubcategories, initialSearchQuery: searchQueryRaw.toLowerCase() }}>
+	(() => {
+		const searchInput = document.querySelector('.breadcrumbs_search_input');
+		const queryRaw = initialSearchQuery || '';
+		const query = queryRaw.trim();
+		if (!query) return;
+
+		const normalize = (value) => (value || '').toLowerCase();
+
+		if (hasSubcategories) {
+			const cards = Array.from(document.querySelectorAll('.products_subcategory_card'));
+			let visibleCount = 0;
+			cards.forEach((card) => {
+				const searchable = normalize(card.getAttribute('data-search'));
+				const match = searchable.includes(query);
+				card.style.display = match ? '' : 'none';
+				if (match) visibleCount += 1;
+			});
+
+			const emptyStatic = document.querySelector('.products_empty_subcategories');
+			if (emptyStatic instanceof HTMLElement) {
+				emptyStatic.style.display = visibleCount > 0 ? 'none' : 'block';
+				emptyStatic.textContent = `Nessun risultato in ${searchInput instanceof HTMLInputElement ? (searchInput.getAttribute('placeholder') || 'questa categoria').replace('Cerca in ', '') : 'questa categoria'}.`;
+			}
+		}
+	})();
+</script>
+
 {!hasSubcategories && productsData.length > 0 && <script is:inline define:vars={{ sidebarTagEntriesJson: JSON.parse(sidebarTagEntriesJson) }}>
 	(() => {
 		const tagLabelMap = new Map(sidebarTagEntriesJson);
@@ -385,9 +433,34 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		const clearButton = document.querySelector('[data-clear-filters]');
 		const selectedCategoryPillsContainer = document.querySelector('[data-category-tag-pills-selected]');
 		const selectedCategoryTagWrap = document.querySelector('[data-category-tag-wrap]');
+		const tagPillsToggleButton = document.querySelector('[data-tag-pills-toggle]');
 		const selectedTags = new Set();
 
-		const createTagPillButton = (tag, label) => {
+		const updateTagPillsToggle = () => {
+			if (!(selectedCategoryTagWrap instanceof HTMLElement) || !(tagPillsToggleButton instanceof HTMLButtonElement)) return;
+			if (selectedCategoryTagWrap.hidden) {
+				tagPillsToggleButton.hidden = true;
+				selectedCategoryTagWrap.classList.remove('is-expanded');
+				tagPillsToggleButton.setAttribute('aria-expanded', 'false');
+				tagPillsToggleButton.textContent = '+';
+				return;
+			}
+
+			tagPillsToggleButton.hidden = false;
+			const expanded = selectedCategoryTagWrap.classList.contains('is-expanded');
+			tagPillsToggleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+			tagPillsToggleButton.textContent = expanded ? '-' : '+';
+		};
+		const cardMatchesSelectedTags = (card, excludeTag = '') => {
+			const tags = splitValues(card.getAttribute('data-tags'));
+			if (selectedTags.size === 0) return true;
+			return Array.from(selectedTags).every((tag) => {
+				if (excludeTag && tag === excludeTag) return true;
+				return tags.includes(tag);
+			});
+		};
+
+		const createTagPillButton = (tag, label, count) => {
 			const isAll = tag === '';
 			const isActive = isAll ? selectedTags.size === 0 : selectedTags.has(tag);
 			const button = document.createElement('button');
@@ -399,7 +472,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 
 			const labelSpan = document.createElement('span');
 			labelSpan.className = 'products_tag_pill_label';
-			labelSpan.textContent = label;
+			labelSpan.textContent = `${label} (${count})`;
 			button.appendChild(labelSpan);
 
 			if (isActive && !isAll) {
@@ -428,26 +501,38 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 			selectedCategoryPillsContainer.innerHTML = '';
 
 			const availableTags = new Set();
-			cards.forEach((card) => {
+			const tagCounts = new Map();
+			cards.filter((card) => cardMatchesSelectedTags(card)).forEach((card) => {
 				splitValues(card.getAttribute('data-tags')).forEach((tag) => availableTags.add(tag));
 			});
 
-			selectedTags.forEach((tag) => {
-				if (!availableTags.has(tag)) selectedTags.delete(tag);
+			Array.from(availableTags).forEach((tag) => {
+				const count = cards.filter((card) => {
+					if (!cardMatchesSelectedTags(card, tag)) return false;
+					const tags = splitValues(card.getAttribute('data-tags'));
+					return tags.includes(tag);
+				}).length;
+				tagCounts.set(tag, count);
 			});
+
+			selectedTags.forEach((tag) => availableTags.add(tag));
 
 			if (availableTags.size === 0) {
 				selectedCategoryTagWrap.hidden = true;
+				updateTagPillsToggle();
 				return;
 			}
 
 			selectedCategoryTagWrap.hidden = false;
-			selectedCategoryPillsContainer.appendChild(createTagPillButton('', 'Tutti i prodotti'));
+			const totalCount = cards.filter((card) => cardMatchesSelectedTags(card)).length;
+			selectedCategoryPillsContainer.appendChild(createTagPillButton('', 'Tutti i prodotti', totalCount));
 			Array.from(availableTags)
 				.sort((a, b) => (tagLabelMap.get(a) || a).localeCompare(tagLabelMap.get(b) || b, 'it', { sensitivity: 'base' }))
 				.forEach((tag) => {
-					selectedCategoryPillsContainer.appendChild(createTagPillButton(tag, tagLabelMap.get(tag) || tag));
+					selectedCategoryPillsContainer.appendChild(createTagPillButton(tag, tagLabelMap.get(tag) || tag, tagCounts.get(tag) || 0));
 				});
+
+			updateTagPillsToggle();
 		};
 
 		const updateClearButton = () => {
@@ -459,9 +544,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 			renderTagPills();
 			let visibleCount = 0;
 			cards.forEach((card) => {
-				const tags = splitValues(card.getAttribute('data-tags'));
-				const tagsMatch = selectedTags.size === 0 || Array.from(selectedTags).every((tag) => tags.includes(tag));
-				const match = tagsMatch;
+				const match = cardMatchesSelectedTags(card);
 				card.style.display = match ? '' : 'none';
 				if (match) visibleCount += 1;
 			});
@@ -474,7 +557,15 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		if (clearButton instanceof HTMLElement) {
 			clearButton.addEventListener('click', () => {
 				selectedTags.clear();
+				if (selectedCategoryTagWrap instanceof HTMLElement) selectedCategoryTagWrap.classList.remove('is-expanded');
 				applyFilters();
+			});
+		}
+
+		if (tagPillsToggleButton instanceof HTMLButtonElement && selectedCategoryTagWrap instanceof HTMLElement) {
+			tagPillsToggleButton.addEventListener('click', () => {
+				selectedCategoryTagWrap.classList.toggle('is-expanded');
+				updateTagPillsToggle();
 			});
 		}
 
@@ -507,6 +598,25 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
+		justify-content: center;
+	}
+
+	.products_tag_pills_toggle {
+		display: none;
+		appearance: none;
+		border: 1px solid rgba(0, 0, 0, 0.2);
+		background: #fff;
+		color: var(--nero);
+		width: 32px;
+		height: 32px;
+		border-radius: 999px;
+		font-size: 20px;
+		line-height: 1;
+		font-weight: 700;
+		cursor: pointer;
+		margin: 8px auto 0;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.products_tag_pills :global(.products_tag_pill) {
@@ -553,6 +663,26 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 
 	.products_tag_pills :global(.products_tag_pill.is-active) {
 		background: var(--arancione-battistel);
+	}
+
+	@media (max-width: 768px) {
+		.products_category_tags {
+			display: block;
+		}
+
+		.products_category_tags .products_tag_pills {
+			max-height: 43px;
+			overflow: hidden;
+		}
+
+		.products_category_tags.is-expanded .products_tag_pills {
+			max-height: 1000px;
+		}
+
+		.products_tag_pills_toggle {
+			display: inline-flex;
+			margin: 8px 0 0 auto;
+		}
 	}
 
 	.products_results_head {

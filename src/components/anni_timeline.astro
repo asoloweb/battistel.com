@@ -51,38 +51,25 @@ const items = await fetchTimelineItems();
 			<div class="anni_timeline_list">
 				{items.map((item, index) => {
 					const imageSrc = resolveImageSrc(item.immagine);
-					const isRight = index % 2 === 0;
-					const sideClass = isRight ? 'is-right' : 'is-left';
 					const card = (
-						<div class={`anni_timeline_card ${isRight ? 'card-right' : 'card-left'}`}>
+						<div class="anni_timeline_card card-right">
 							{item.Titolo && <h3>{item.Titolo}</h3>}
 							{imageSrc && <img src={imageSrc} alt={item.Titolo || String(item.anno || '')} loading="lazy" />}
 							{item.descrizione && <p>{item.descrizione}</p>}
 						</div>
 					);
 					return (
-						<article class={`anni_timeline_item ${sideClass}`} data-aos="fade-up" data-aos-duration="900">
+						<article class="anni_timeline_item is-vertical" data-aos="fade-up" data-aos-duration="900">
 							<div class="anni_timeline_side anni_timeline_side_left">
-								{isRight ? (
-									<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
-										{item.anno}
-									</div>
-								) : (
-									card
-								)}
+								<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
+									{item.anno}
+								</div>
+								{card}
 							</div>
 							<div class="anni_timeline_center" aria-hidden="true">
 								<span class="anni_timeline_dot"></span>
 							</div>
-							<div class="anni_timeline_side anni_timeline_side_right">
-								{isRight ? (
-									card
-								) : (
-									<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
-										{item.anno}
-									</div>
-								)}
-							</div>
+							<div class="anni_timeline_side anni_timeline_side_right"></div>
 						</article>
 					);
 				})}
@@ -204,6 +191,32 @@ const items = await fetchTimelineItems();
 		position: relative;
 	}
 
+	.anni_timeline_item.is-vertical {
+		grid-template-columns: 44px minmax(0, 1fr);
+		gap: 0;
+	}
+
+	.anni_timeline_item.is-vertical .anni_timeline_side_left {
+		grid-column: 2;
+		padding-right: 0;
+		justify-content: flex-start;
+		display: grid;
+		gap: 10px;
+	}
+
+	.anni_timeline_item.is-vertical .anni_timeline_side_right {
+		display: none;
+	}
+
+	.anni_timeline_item.is-vertical .anni_timeline_center {
+		grid-column: 1;
+	}
+
+	.anni_timeline_item.is-vertical .anni_timeline_dot {
+		left: 20px;
+		transform: none;
+	}
+
 	.anni_timeline_side {
 		display: flex;
 		align-items: flex-start;
@@ -279,6 +292,20 @@ const items = await fetchTimelineItems();
 		height: 0;
 		border-top: 10px solid transparent;
 		border-bottom: 10px solid transparent;
+		border-right: 10px solid var(--arancione-battistel);
+	}
+
+	.anni_timeline_item.is-vertical .anni_timeline_card.card-right,
+	.anni_timeline_item.is-vertical .anni_timeline_card.card-left {
+		border-left: 4px solid var(--arancione-battistel);
+		border-right: 0;
+	}
+
+	.anni_timeline_item.is-vertical .anni_timeline_card.card-right::before,
+	.anni_timeline_item.is-vertical .anni_timeline_card.card-left::before {
+		left: -13px;
+		right: auto;
+		border-left: 0;
 		border-right: 10px solid var(--arancione-battistel);
 	}
 
