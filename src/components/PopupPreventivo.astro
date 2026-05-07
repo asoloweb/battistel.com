@@ -217,6 +217,9 @@ try {
 
 				if (!response.ok) throw new Error(`Webhook error: ${response.status}`);
 
+				const umami = (window as Window & { umami?: { track: (eventName: string, eventData?: Record<string, unknown>) => void } }).umami;
+				umami?.track('form inviato', { tipo_richiesta: 'preventivo' });
+
 				form.reset();
 				if (statusEl) {
 					statusEl.textContent = 'Richiesta inviata con successo.';

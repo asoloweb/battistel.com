@@ -124,9 +124,14 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					}),
 				});
 
+				const responseBody = await response.text();
+
 				if (!response.ok) {
-					throw new Error(`Webhook error: ${response.status}`);
+					throw new Error(`Webhook error: ${response.status} ${responseBody}`);
 				}
+
+				const umami = (window as Window & { umami?: { track: (eventName: string, eventData?: Record<string, unknown>) => void } }).umami;
+				umami?.track('form inviato', { tipo_richiesta: 'contatto' });
 
 				form.reset();
 				if (statusEl) {
@@ -136,7 +141,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 			} catch (error) {
 				console.error('Errore invio richiesta:', error);
 				if (statusEl) {
-					statusEl.textContent = "Errore durante l'invio. Riprova più tardi.";
+					statusEl.textContent = "Errore durante l'invio. Controlla i dati e riprova.";
 					statusEl.dataset.state = 'error';
 				}
 			} finally {
