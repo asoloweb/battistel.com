@@ -130,8 +130,10 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					throw new Error(`Webhook error: ${response.status} ${responseBody}`);
 				}
 
-				const umami = (window as Window & { umami?: { track: (eventName: string, eventData?: Record<string, unknown>) => void } }).umami;
-				umami?.track('form inviato', { tipo_richiesta: 'contatto' });
+				const umami = window.umami;
+				if (umami && typeof umami.track === 'function') {
+					umami.track('form inviato', { tipo_richiesta: 'contatto' });
+				}
 
 				form.reset();
 				if (statusEl) {

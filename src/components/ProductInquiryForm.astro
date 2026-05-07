@@ -170,8 +170,10 @@ try {
 
 				if (!response.ok) throw new Error(`Webhook error: ${response.status}`);
 
-				const umami = (window as Window & { umami?: { track: (eventName: string, eventData?: Record<string, unknown>) => void } }).umami;
-				umami?.track('form inviato', { tipo_richiesta: 'prodotto' });
+				const umami = window.umami;
+				if (umami && typeof umami.track === 'function') {
+					umami.track('form inviato', { tipo_richiesta: 'prodotto' });
+				}
 
 				form.reset();
 				if (statusEl) {
