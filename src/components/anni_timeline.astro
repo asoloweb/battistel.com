@@ -51,25 +51,44 @@ const items = await fetchTimelineItems();
 			<div class="anni_timeline_list">
 				{items.map((item, index) => {
 					const imageSrc = resolveImageSrc(item.immagine);
+					const isRight = index % 2 === 0;
+					const sideClass = isRight ? 'is-right' : 'is-left';
 					const card = (
-						<div class="anni_timeline_card card-right">
+						<div class={`anni_timeline_card ${isRight ? 'card-right' : 'card-left'}`}>
 							{item.Titolo && <h3>{item.Titolo}</h3>}
 							{imageSrc && <img src={imageSrc} alt={item.Titolo || String(item.anno || '')} loading="lazy" />}
 							{item.descrizione && <p>{item.descrizione}</p>}
 						</div>
 					);
 					return (
-						<article class="anni_timeline_item is-vertical" data-aos="fade-up" data-aos-duration="900">
-							<div class="anni_timeline_side anni_timeline_side_left">
+						<article class={`anni_timeline_item ${sideClass}`} data-aos="fade-up" data-aos-duration="900">
+							<div class="anni_timeline_mobile_stack">
 								<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
 									{item.anno}
 								</div>
 								{card}
 							</div>
+							<div class="anni_timeline_side anni_timeline_side_left">
+								{isRight ? (
+									<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
+										{item.anno}
+									</div>
+								) : (
+									card
+								)}
+							</div>
 							<div class="anni_timeline_center" aria-hidden="true">
 								<span class="anni_timeline_dot"></span>
 							</div>
-							<div class="anni_timeline_side anni_timeline_side_right"></div>
+							<div class="anni_timeline_side anni_timeline_side_right">
+								{isRight ? (
+									card
+								) : (
+									<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
+										{item.anno}
+									</div>
+								)}
+							</div>
 						</article>
 					);
 				})}
@@ -189,6 +208,10 @@ const items = await fetchTimelineItems();
 		align-items: start;
 		width: 100%;
 		position: relative;
+	}
+
+	.anni_timeline_mobile_stack {
+		display: none;
 	}
 
 	.anni_timeline_item.is-vertical {
@@ -345,29 +368,25 @@ const items = await fetchTimelineItems();
 		object-fit: cover;
 	}
 
-	@media (max-width: 900px) {
+	@media (max-width: 768px) {
 		.anni_timeline_list::before {
 			left: 20px;
 			transform: none;
 		}
 
 		.anni_timeline_item {
-			grid-template-columns: 44px minmax(0, 1fr);
-			gap: 0;
+			display: block;
 		}
 
-		.anni_timeline_side_left {
-			grid-column: 2;
-			padding-right: 0;
-			justify-content: flex-start;
+		.anni_timeline_mobile_stack {
+			display: grid;
+			gap: 10px;
+			padding-left: 44px;
 		}
 
+		.anni_timeline_side_left,
 		.anni_timeline_side_right {
 			display: none;
-		}
-
-		.anni_timeline_center {
-			grid-column: 1;
 		}
 
 		.anni_timeline_year {
