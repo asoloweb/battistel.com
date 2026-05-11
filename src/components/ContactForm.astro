@@ -35,8 +35,8 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 		</label>
 
 		<label class="contact_form_field">
-			<span>Referente *</span>
-			<input name="referente" type="text" autocomplete="name" required />
+			<span>Referente</span>
+			<input name="referente" type="text" autocomplete="name" />
 		</label>
 
 		<label class="contact_form_field">
@@ -95,7 +95,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					`Ragione sociale: ${ragioneSociale}`,
 					`Email: ${email}`,
 					`Telefono: ${telefono || '-'}`,
-					`Referente: ${referente}`,
+					`Referente: ${referente || '-'}`,
 					`Messaggio: ${messaggio}`,
 				];
 				const contatto = contattoLines.join('\n');

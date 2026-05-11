@@ -65,8 +65,8 @@ try {
 
 					<div class="quote_popup_grid">
 						<label class="quote_popup_field">
-							<span>Referente *</span>
-							<input name="referente" type="text" autocomplete="name" required />
+							<span>Referente</span>
+							<input name="referente" type="text" autocomplete="name" />
 						</label>
 
 						<label class="quote_popup_field">
@@ -185,7 +185,7 @@ try {
 					'Tipo richiesta: preventivo',
 					`Prodotto: ${String(formData.get('product_title') || '').trim() || '-'}`,
 					`Ragione sociale: ${String(formData.get('ragione_sociale') || '').trim()}`,
-					`Referente: ${String(formData.get('referente') || '').trim()}`,
+					`Referente: ${String(formData.get('referente') || '').trim() || '-'}`,
 					`Email: ${String(formData.get('email') || '').trim()}`,
 					`Telefono: ${String(formData.get('telefono') || '').trim() || '-'}`,
 					`Messaggio: ${String(formData.get('messaggio') || '').trim()}`,

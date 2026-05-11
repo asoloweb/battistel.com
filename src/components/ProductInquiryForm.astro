@@ -63,8 +63,8 @@ try {
 
 				<div class="product_inquiry_grid">
 					<label class="product_inquiry_field">
-						<span>Referente *</span>
-						<input name="referente" type="text" autocomplete="name" required />
+						<span>Referente</span>
+						<input name="referente" type="text" autocomplete="name" />
 					</label>
 
 					<label class="product_inquiry_field">
@@ -138,7 +138,7 @@ try {
 					`Codice prodotto: ${productCode || '-'}`,
 					`Categoria: ${categoryName || '-'}`,
 					`Ragione sociale: ${ragioneSociale}`,
-					`Referente: ${referente}`,
+					`Referente: ${referente || '-'}`,
 					`Email: ${email}`,
 					`Telefono: ${telefono || '-'}`,
 					`Messaggio: ${messaggio}`,
