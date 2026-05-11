@@ -4,9 +4,9 @@ import { defineConfig } from 'astro/config';
 const directusUrl =
   process.env.PUBLIC_DIRECTUS_URL ||
   process.env.DIRECTUS_URL ||
-  'https://battistel.prometeo.com';
+  'https://admin.battistel.com';
 let directusProtocol = 'https';
-let directusHostname = 'battistel.prometeo.com';
+let directusHostname = 'admin.battistel.com';
 
 try {
   const parsed = new URL(directusUrl);

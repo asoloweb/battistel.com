@@ -4,7 +4,7 @@
       "command": "npx",
       "args": ["-y", "directus-mcp-server"],
       "env": {
-        "DIRECTUS_URL": "https://battistel.prometeo.com",
+        "DIRECTUS_URL": "https://admin.battistel.com",
         "DIRECTUS_TOKEN": "BPgx6aGtWTNBUerFhAqMhN6QF6jh35z9"
       }
     },
@@ -16,7 +16,7 @@
       "command": "npx",
       "args": ["-y", "directus-mcp-server"],
       "env": {
-        "DIRECTUS_URL": "https://battistel-admin.prometeo.com",
+        "DIRECTUS_URL": "https://admin.battistel.com",
         "DIRECTUS_TOKEN": "5tnczDkJgT_UXjc3CzfkZLFoXpCJfDSw"
       }
     }

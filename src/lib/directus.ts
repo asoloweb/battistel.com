@@ -3,13 +3,13 @@ import { Agent } from 'undici';
 const rawDirectusUrl =
 	import.meta.env.PUBLIC_DIRECTUS_URL ||
 	import.meta.env.DIRECTUS_URL ||
-	'https://battistel.prometeo.com';
+	'https://admin.battistel.com';
 
 export const DIRECTUS_URL = rawDirectusUrl.replace(/\/+$/, '');
 const shouldRejectUnauthorized =
 	(
 		import.meta.env.DIRECTUS_TLS_REJECT_UNAUTHORIZED ||
-		(DIRECTUS_URL.includes('battistel.prometeo.com') ? 'false' : 'true')
+		(DIRECTUS_URL.includes('admin.battistel.com') ? 'false' : 'true')
 	) !== 'false';
 const directusDispatcher =
 	DIRECTUS_URL.startsWith('https://') && !shouldRejectUnauthorized

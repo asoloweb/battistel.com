@@ -4,8 +4,8 @@ import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/direct
 import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveAssetId, resolveProductThumbnailSrc } from '../lib/products';
 import { slugifyLabel } from '../lib/slug';
 
-const CATEGORY_CARD_IMAGE = 'https://battistel.prometeo.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
-const PRODUCT_CARD_IMAGE = 'https://battistel.prometeo.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
+const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
+const PRODUCT_CARD_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
 
 interface Category {
 	id?: number | string;
@@ -56,6 +56,7 @@ interface Props {
 
 const { titolo = 'Prodotti', filterCategorySlug, selectedCategoryLabel } = Astro.props as Props;
 const searchQueryRaw = (Astro.url.searchParams.get('q') || '').trim();
+const searchQuery = searchQueryRaw.toLowerCase();
 
 function resolveImageSrc(value: string | undefined) {
 	return directusAssetUrl(value, {
@@ -253,6 +254,7 @@ const subcategoryCards = selectedCategoryNode
 	: [];
 
 const hasSubcategories = subcategoryCards.length > 0;
+const hasSearchQuery = searchQuery.length > 0;
 
 const productsData = products
 	.map((product) => {
@@ -287,11 +289,7 @@ const productsData = products
 			}),
 			categorySlugs: Array.from(categorySlugs),
 			tags: extractProductTags(product),
-			searchText: [
-				getProductTitle(product) || 'Prodotto',
-				...directCategories.map((entry) => entry.label),
-				...extractProductTags(product).map((entry) => entry.label),
-			]
+			searchText: [getProductTitle(product) || 'Prodotto', String(product.codice_prodotto || '').trim()]
 				.join(' ')
 				.toLowerCase(),
 		};
@@ -320,6 +318,11 @@ for (const product of productsData) {
 }
 
 const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries()));
+const searchedProductsData = hasSearchQuery
+	? productsData.filter((entry) => entry.searchText.includes(searchQuery))
+	: productsData;
+const showProductResults = hasSubcategories && hasSearchQuery;
+const displayedProductsData = showProductResults ? searchedProductsData : productsData;
 ---
 
 	<section class="products_block" data-aos="fade-up" data-aos-duration="1500">
@@ -345,7 +348,7 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 			)}
 		</div>
 
-		{hasSubcategories ? (
+		{hasSubcategories && !showProductResults ? (
 			<>
 				<div class="products_subcategories_grid">
 					{subcategoryCards.map((entry) => (
@@ -362,15 +365,15 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 				</div>
 				<p class="products_empty_static products_empty_subcategories">Nessun risultato in questa categoria.</p>
 			</>
-		) : productsData.length > 0 ? (
+		) : displayedProductsData.length > 0 ? (
 			<>
 				<div class="products_results_head">
-					<p class="products_results_count" data-results-count>{productsData.length} prodotti</p>
-					<button class="products_clear_filters" type="button" data-clear-filters>Reset filtri</button>
+					<p class="products_results_count" data-results-count>{displayedProductsData.length} prodotti</p>
+					{!showProductResults && <button class="products_clear_filters" type="button" data-clear-filters>Reset filtri</button>}
 				</div>
 
 				<div class="products_grid">
-					{productsData.map((entry) => (
+					{displayedProductsData.map((entry) => (
 						<a class="products_card" href={entry.href} data-tags={entry.tags.map((tag) => tag.slug).join(',')} data-search={entry.searchText}>
 							{entry.imageSrc && (
 								<div class="products_card_media">
@@ -385,13 +388,18 @@ const sidebarTagEntriesJson = JSON.stringify(Array.from(sidebarTagMap.entries())
 				<p class="products_empty">Nessun prodotto disponibile con i filtri selezionati.</p>
 			</>
 		) : (
-			<p class="products_empty_static">Nessun prodotto disponibile in questa categoria.</p>
+			<p class="products_empty_static">
+				{showProductResults
+					? 'Nessun prodotto trovato in questa categoria con la ricerca inserita.'
+					: 'Nessun prodotto disponibile in questa categoria.'}
+			</p>
 		)}
 	</div>
 </section>
 
-<script is:inline define:vars={{ hasSubcategories, initialSearchQuery: searchQueryRaw.toLowerCase() }}>
+<script is:inline define:vars={{ hasSubcategories, showProductResults, initialSearchQuery: searchQueryRaw.toLowerCase() }}>
 	(() => {
+		if (showProductResults) return;
 		const searchInput = document.querySelector('.breadcrumbs_search_input');
 		const queryRaw = initialSearchQuery || '';
 		const query = queryRaw.trim();
