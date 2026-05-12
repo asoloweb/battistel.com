@@ -24,7 +24,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 <section class="contact_form">
 	<h2 class="contact_form_title">{title}</h2>
 
-	<form class="job_application_form" method="post" data-webhook-url={webhookUrl} data-directus-url={DIRECTUS_URL}>
+	<form class="job_application_form" method="post" data-webhook-url={webhookUrl}>
 		<label class="contact_form_field">
 			<span>Nome e cognome *</span>
 			<input name="nome_cognome" type="text" autocomplete="name" required />
@@ -79,7 +79,6 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 		const statusEl = form.querySelector('.contact_form_status');
 		const submitButton = form.querySelector('.contact_form_submit');
 		const webhookUrl = form.dataset.webhookUrl;
-		const directusUrl = form.dataset.directusUrl || '';
 
 		form.addEventListener('submit', async (event) => {
 			event.preventDefault();
@@ -110,7 +109,6 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 				const cvFileRaw = formData.get('cv_file');
 				const cvFile = cvFileRaw instanceof File && cvFileRaw.size > 0 ? cvFileRaw : null;
 
-				let cvFileId = '';
 				let cvFilename = '';
 				let cvMime = '';
 				let cvBase64 = '';
@@ -118,29 +116,6 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 				if (cvFile) {
 					if (cvFile.type !== 'application/pdf') {
 						throw new Error('Formato file non valido: carica un PDF.');
-					}
-
-					const uploadData = new FormData();
-					uploadData.append('file', cvFile, cvFile.name || 'curriculum.pdf');
-
-					if (!directusUrl) {
-						throw new Error('URL Directus non configurato.');
-					}
-
-					const uploadResponse = await fetch(`${directusUrl}/files`, {
-						method: 'POST',
-						body: uploadData,
-					});
-
-					const uploadJson = await uploadResponse.json().catch(() => null);
-					if (!uploadResponse.ok) {
-						const reason = uploadJson?.errors?.[0]?.message || `Upload fallito (${uploadResponse.status})`;
-						throw new Error(reason);
-					}
-
-					cvFileId = String(uploadJson?.data?.id || '').trim();
-					if (!cvFileId) {
-						throw new Error('Upload PDF completato ma ID file non disponibile.');
 					}
 
 					cvFilename = cvFile.name || 'curriculum.pdf';
@@ -177,7 +152,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					telefono,
 					ruolo,
 					messaggio,
-					cv_file: cvFileId || null,
+					cv_file: null,
 					cv_filename: cvFilename,
 					cv_mime: cvMime,
 					cv_base64: cvBase64,
