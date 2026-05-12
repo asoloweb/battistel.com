@@ -197,10 +197,11 @@ const categoryCards = topLevelCategories
 			description: category.descrizione_categoria || '',
 			href: `/prodotti/categoria/${encodeURIComponent(slug)}`,
 			imageSrc: CATEGORY_CARD_IMAGE || resolveImageSrc(imageField),
+			searchText: [category.titolo_categoria || '', category.descrizione_categoria || ''].join(' ').toLowerCase(),
 		};
 	})
 	.filter(
-		(entry): entry is { title: string; description: string; href: string; imageSrc: string } => Boolean(entry)
+		(entry): entry is { title: string; description: string; href: string; imageSrc: string; searchText: string } => Boolean(entry)
 	);
 
 const productsData = products
@@ -257,20 +258,40 @@ const productsData = products
 				<button class="products_clear_filters" type="button" data-products-overview-clear>Reset ricerca</button>
 			</div>
 
-			<div class="products_grid" data-products-overview-grid>
-				{productsData.map((entry) => (
-					<a class="products_card" href={entry.href} data-search={entry.searchText}>
-						{entry.imageSrc && (
-							<div class="products_card_media">
-								<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
-							</div>
-						)}
-						<h3 class="products_card_title">{entry.title}</h3>
-					</a>
-				))}
+			<div class="products_result_section" data-products-overview-categories-results>
+				<h3 class="products_result_section_title">Categorie</h3>
+				<div class="categorie_prodotti_grid" data-products-overview-category-grid>
+					{categoryCards.map((entry) => (
+						<a class="categorie_prodotti_card" href={entry.href} data-search={entry.searchText}>
+							{entry.imageSrc && (
+								<div class="categorie_prodotti_media">
+									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+								</div>
+							)}
+							<h2 class="categorie_prodotti_card_title">{entry.title}</h2>
+							{entry.description && <p class="categorie_prodotti_card_subtitle">{entry.description}</p>}
+						</a>
+					))}
+				</div>
 			</div>
 
-			<p class="products_empty" data-products-overview-empty>Nessun prodotto trovato.</p>
+			<div class="products_result_section" data-products-overview-products-results>
+				<h3 class="products_result_section_title">Prodotti</h3>
+				<div class="products_grid" data-products-overview-grid>
+					{productsData.map((entry) => (
+						<a class="products_card" href={entry.href} data-search={entry.searchText}>
+							{entry.imageSrc && (
+								<div class="products_card_media">
+									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+								</div>
+							)}
+							<h3 class="products_card_title">{entry.title}</h3>
+						</a>
+					))}
+				</div>
+			</div>
+
+			<p class="products_empty" data-products-overview-empty>Nessun risultato trovato.</p>
 		</div>
 
 		{categoryCards.length > 0 && (
@@ -302,7 +323,10 @@ const productsData = products
 		const clearButton = document.querySelector('[data-products-overview-clear]');
 		const countElement = document.querySelector('[data-products-overview-count]');
 		const emptyElement = document.querySelector('[data-products-overview-empty]');
-		const cards = Array.from(document.querySelectorAll('[data-products-overview-grid] .products_card'));
+		const productSection = document.querySelector('[data-products-overview-products-results]');
+		const categorySection = document.querySelector('[data-products-overview-categories-results]');
+		const productCards = Array.from(document.querySelectorAll('[data-products-overview-grid] .products_card'));
+		const categoryCards = Array.from(document.querySelectorAll('[data-products-overview-category-grid] .categorie_prodotti_card'));
 		const querySearchTermRaw = new URLSearchParams(window.location.search).get('q') || '';
 		const querySearchTerm = querySearchTermRaw.trim().toLowerCase();
 		let searchTerm = querySearchTerm;
@@ -313,19 +337,33 @@ const productsData = products
 		}
 
 		const applySearch = () => {
-			let visibleCount = 0;
+			let visibleProductCount = 0;
+			let visibleCategoryCount = 0;
 
-			cards.forEach((card) => {
+			productCards.forEach((card) => {
 				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
 				const match = !activeSearchTerm || searchable.includes(activeSearchTerm);
 				card.style.display = match ? '' : 'none';
-				if (match) visibleCount += 1;
+				if (match) visibleProductCount += 1;
 			});
+
+			categoryCards.forEach((card) => {
+				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
+				const match = !activeSearchTerm || searchable.includes(activeSearchTerm);
+				card.style.display = match ? '' : 'none';
+				if (match) visibleCategoryCount += 1;
+			});
+
+			const visibleCount = visibleProductCount + visibleCategoryCount;
 
 			if (resultsWrap instanceof HTMLElement) resultsWrap.hidden = !activeSearchTerm;
 			if (categoriesWrap instanceof HTMLElement) categoriesWrap.hidden = Boolean(activeSearchTerm);
+			if (productSection instanceof HTMLElement) productSection.hidden = visibleProductCount === 0;
+			if (categorySection instanceof HTMLElement) categorySection.hidden = visibleCategoryCount === 0;
 			if (emptyElement instanceof HTMLElement) emptyElement.style.display = visibleCount > 0 ? 'none' : 'block';
-			if (countElement instanceof HTMLElement) countElement.textContent = `${visibleCount} prodotti`;
+			if (countElement instanceof HTMLElement) {
+				countElement.textContent = `${visibleCount} risultati (${visibleCategoryCount} categorie, ${visibleProductCount} prodotti)`;
+			}
 			if (clearButton instanceof HTMLElement) clearButton.style.visibility = activeSearchTerm ? 'visible' : 'hidden';
 		};
 
@@ -434,6 +472,16 @@ const productsData = products
 
 	.products_overview_results {
 		margin-bottom: 32px;
+	}
+
+	.products_result_section + .products_result_section {
+		margin-top: 24px;
+	}
+
+	.products_result_section_title {
+		margin: 0 0 12px;
+		font-size: 18px;
+		font-weight: 700;
 	}
 
 	.products_results_head {

@@ -24,7 +24,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 <section class="contact_form">
 	<h2 class="contact_form_title">{title}</h2>
 
-	<form class="job_application_form" method="post" data-webhook-url={webhookUrl}>
+	<form class="job_application_form" method="post" data-webhook-url={webhookUrl} data-directus-url={DIRECTUS_URL}>
 		<label class="contact_form_field">
 			<span>Nome e cognome *</span>
 			<input name="nome_cognome" type="text" autocomplete="name" required />
@@ -56,6 +56,11 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 			<textarea name="messaggio" rows={6} required></textarea>
 		</label>
 
+		<label class="contact_form_field">
+			<span>Curriculum (PDF, opzionale)</span>
+			<input name="cv_file" type="file" accept="application/pdf,.pdf" />
+		</label>
+
 		<label class="contact_form_privacy">
 			<input name="privacy" type="checkbox" required />
 			<span>
@@ -74,6 +79,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 		const statusEl = form.querySelector('.contact_form_status');
 		const submitButton = form.querySelector('.contact_form_submit');
 		const webhookUrl = form.dataset.webhookUrl;
+		const directusUrl = form.dataset.directusUrl || '';
 
 		form.addEventListener('submit', async (event) => {
 			event.preventDefault();
@@ -101,6 +107,55 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 				const telefono = String(formData.get('telefono') || '').trim();
 				const ruolo = String(formData.get('ruolo') || '');
 				const messaggio = String(formData.get('messaggio') || '').trim();
+				const cvFileRaw = formData.get('cv_file');
+				const cvFile = cvFileRaw instanceof File && cvFileRaw.size > 0 ? cvFileRaw : null;
+
+				let cvFileId = '';
+				let cvFilename = '';
+				let cvMime = '';
+				let cvBase64 = '';
+
+				if (cvFile) {
+					if (cvFile.type !== 'application/pdf') {
+						throw new Error('Formato file non valido: carica un PDF.');
+					}
+
+					const uploadData = new FormData();
+					uploadData.append('file', cvFile, cvFile.name || 'curriculum.pdf');
+
+					if (!directusUrl) {
+						throw new Error('URL Directus non configurato.');
+					}
+
+					const uploadResponse = await fetch(`${directusUrl}/files`, {
+						method: 'POST',
+						body: uploadData,
+					});
+
+					const uploadJson = await uploadResponse.json().catch(() => null);
+					if (!uploadResponse.ok) {
+						const reason = uploadJson?.errors?.[0]?.message || `Upload fallito (${uploadResponse.status})`;
+						throw new Error(reason);
+					}
+
+					cvFileId = String(uploadJson?.data?.id || '').trim();
+					if (!cvFileId) {
+						throw new Error('Upload PDF completato ma ID file non disponibile.');
+					}
+
+					cvFilename = cvFile.name || 'curriculum.pdf';
+					cvMime = cvFile.type || 'application/pdf';
+
+					const arrayBuffer = await cvFile.arrayBuffer();
+					const bytes = new Uint8Array(arrayBuffer);
+					let binary = '';
+					const chunkSize = 0x8000;
+					for (let i = 0; i < bytes.length; i += chunkSize) {
+						const chunk = bytes.subarray(i, i + chunkSize);
+						binary += String.fromCharCode(...chunk);
+					}
+					cvBase64 = btoa(binary);
+				}
 
 				const contattoLines = [
 					'Tipo richiesta: lavoro',
@@ -108,6 +163,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					`Email: ${email}`,
 					`Telefono: ${telefono || '-'}`,
 					`Ruolo di interesse: ${ruolo}`,
+					`CV: ${cvFilename || '-'}`,
 					`Messaggio: ${messaggio}`,
 				];
 				const contatto = contattoLines.join('\n');
@@ -121,6 +177,10 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					telefono,
 					ruolo,
 					messaggio,
+					cv_file: cvFileId || null,
+					cv_filename: cvFilename,
+					cv_mime: cvMime,
+					cv_base64: cvBase64,
 				};
 
 				const response = await fetch(webhookUrl, {
@@ -153,7 +213,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 			} catch (error) {
 				console.error('Errore invio candidatura:', error);
 				if (statusEl) {
-					statusEl.textContent = "Errore durante l'invio. Riprova piu tardi.";
+					statusEl.textContent = error instanceof Error ? error.message : "Errore durante l'invio. Riprova piu tardi.";
 					statusEl.dataset.state = 'error';
 				}
 			} finally {
