@@ -7,7 +7,7 @@ import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveProduct
 import { slugifyLabel } from '../../lib/slug';
 
 const DEFAULT_PRODUCT_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
-const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
+const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/491185c0-ede3-4ffd-b149-5872266922fa';
 
 type Category = {
 	id?: number | string;
@@ -324,7 +324,7 @@ export async function getStaticPaths() {
 const { product: staticProduct } = Astro.props as { product: Product };
 const routeSlug = Astro.params.slug || '';
 const productsPage = await fetchProductsPage();
-const pageHeaderImage = `${DIRECTUS_URL}/assets/491185c0-ede3-4ffd-b149-5872266922fa`;
+const defaultPageHeaderImage = `${DIRECTUS_URL}/assets/491185c0-ede3-4ffd-b149-5872266922fa`;
 const allProducts = await fetchProducts();
 const allProductsSlugMap = buildProductSlugMap(allProducts);
 const liveProduct = allProducts.find((entry) => {
@@ -397,6 +397,8 @@ const relatedCategoryCards = Array.from(
 );
 
 const primaryCategory = categories[0] || null;
+const primaryCategoryNode = primaryCategory ? categoryMap.get(resolveToken(primaryCategory.id)) : null;
+const pageHeaderImage = primaryCategoryNode?.imageSrc || defaultPageHeaderImage;
 const breadcrumbCategoryItems = [] as { name: string; href?: string }[];
 
 if (primaryCategory) {

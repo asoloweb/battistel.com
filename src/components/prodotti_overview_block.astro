@@ -4,7 +4,7 @@ import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/direct
 import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveAssetId, resolveProductThumbnailSrc } from '../lib/products';
 import { slugifyLabel } from '../lib/slug';
 
-const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
+const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/491185c0-ede3-4ffd-b149-5872266922fa';
 const PRODUCT_CARD_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
 
 interface Category {
@@ -196,7 +196,7 @@ const categoryCards = topLevelCategories
 			title: category.titolo_categoria || 'Categoria',
 			description: category.descrizione_categoria || '',
 			href: `/prodotti/categoria/${encodeURIComponent(slug)}`,
-			imageSrc: CATEGORY_CARD_IMAGE || resolveImageSrc(imageField),
+			imageSrc: resolveImageSrc(imageField) || CATEGORY_CARD_IMAGE,
 			searchText: [category.titolo_categoria || '', category.descrizione_categoria || ''].join(' ').toLowerCase(),
 		};
 	})
@@ -556,7 +556,12 @@ const productsData = products
 		background: #f8f8f8;
 	}
 
-	.categorie_prodotti_media img,
+	.categorie_prodotti_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
 	.products_card_media img {
 		width: 100%;
 		height: 100%;

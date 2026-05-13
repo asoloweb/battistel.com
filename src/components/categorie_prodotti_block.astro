@@ -2,7 +2,7 @@
 import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
 import { slugifyLabel } from '../lib/slug';
 
-const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
+const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/491185c0-ede3-4ffd-b149-5872266922fa';
 
 interface Category {
 	id?: number | string;
@@ -116,7 +116,7 @@ const cards = categories
 			title: category.titolo_categoria || 'Categoria',
 			description: category.descrizione_categoria || '',
 			href: `/prodotti/categoria/${encodeURIComponent(slug)}`,
-			imageSrc: CATEGORY_CARD_IMAGE || resolveImageSrc(imageField),
+			imageSrc: resolveImageSrc(imageField) || CATEGORY_CARD_IMAGE,
 		};
 	})
 	.filter(
@@ -208,7 +208,7 @@ const cards = categories
 	.categorie_prodotti_media img {
 		width: 100%;
 		height: 100%;
-		object-fit: contain;
+		object-fit: cover;
 	}
 
 	.categorie_prodotti_card_title {

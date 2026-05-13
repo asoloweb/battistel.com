@@ -4,7 +4,7 @@ import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/direct
 import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveAssetId, resolveProductThumbnailSrc } from '../lib/products';
 import { slugifyLabel } from '../lib/slug';
 
-const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/e7001235-1819-4d98-93c1-c011be320ce8';
+const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/491185c0-ede3-4ffd-b149-5872266922fa';
 const PRODUCT_CARD_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
 
 interface Category {
@@ -248,7 +248,7 @@ const subcategoryCards = selectedCategoryNode
 				title: node.title,
 				description: node.description,
 				href: `/prodotti/categoria/${encodeURIComponent(node.slug)}`,
-				imageSrc: CATEGORY_CARD_IMAGE || node.imageSrc,
+				imageSrc: node.imageSrc || CATEGORY_CARD_IMAGE,
 				slug: node.slug,
 			}))
 	: [];
@@ -804,7 +804,12 @@ const displayedProductsData = hasSearchQuery ? searchedProductsData : productsDa
 		background: #f8f8f8;
 	}
 
-	.products_subcategory_media img,
+	.products_subcategory_media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
 	.products_card_media img {
 		width: 100%;
 		height: 100%;

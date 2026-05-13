@@ -1,0 +1,317 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageContent from '../components/PageContent.astro';
+import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
+
+const DOCUMENT_ICON_URL = `${DIRECTUS_URL}/assets/fcc29525-996f-4a12-bf35-567d2b1a198a`;
+
+type Page = {
+	status?: string;
+	slug?: string;
+	title?: string;
+	Titolo?: string;
+	seo_title?: string;
+	seo_desc?: string;
+	editor?: unknown[];
+	contenuto?: string;
+	hide_page_header?: boolean;
+	featured_image?: string;
+	description?: string;
+};
+
+type DocumentoFile = {
+	id?: string;
+	title?: string | null;
+	filename_download?: string | null;
+};
+
+type DocumentoItem = {
+	id?: string;
+	nome_file?: string;
+	descrizione?: string;
+	file?: DocumentoFile | string | null;
+};
+
+async function fetchDocumentazionePage() {
+	const pageUrl = directusItemsUrl('pages');
+	pageUrl.searchParams.set(
+		'fields',
+		'*,slug.*,editor.collection,editor.item.*,editor.item.slider.*,editor.item.slider.slides.item.*,editor.item.card.single_card_id.*,editor.item.card.single_card_id.link.id,editor.item.card.single_card_id.link.slug,editor.item.card.single_card_id.link.title'
+	);
+	pageUrl.searchParams.set('filter[status][_eq]', 'published');
+	pageUrl.searchParams.set('filter[slug][_eq]', 'documentazione');
+
+	const pageResponse = await directusFetch(pageUrl);
+	const pagePayload = await pageResponse.json();
+	return (pagePayload?.data?.[0] as Page | undefined) ?? null;
+}
+
+function getFileData(file: DocumentoItem['file']) {
+	if (!file) return null;
+	if (typeof file === 'object') {
+		const fileId = file.id?.trim() || '';
+		if (!fileId) return null;
+		const filename = file.filename_download?.trim() || file.title?.trim() || '';
+		return {
+			id: fileId,
+			label: file.title?.trim() || file.filename_download?.trim() || 'Scarica documento',
+			filename,
+			href: `${DIRECTUS_URL}/assets/${fileId}`,
+		};
+	}
+	const fileId = file.trim();
+	if (!fileId) return null;
+	return {
+		id: fileId,
+		label: 'Scarica documento',
+		filename: '',
+		href: `${DIRECTUS_URL}/assets/${fileId}`,
+	};
+}
+
+function getFileType(filename: string) {
+	if (!filename) return 'File';
+	const parts = filename.split('.');
+	if (parts.length < 2) return 'File';
+	const ext = parts[parts.length - 1]?.trim().toUpperCase();
+	return ext || 'File';
+}
+
+const page = await fetchDocumentazionePage();
+
+const docsUrl = directusItemsUrl('Documentazione');
+docsUrl.searchParams.set('fields', 'id,nome_file,descrizione,file.id,file.title,file.filename_download');
+docsUrl.searchParams.set('sort', '-id');
+
+const response = await directusFetch(docsUrl);
+const payload = await response.json();
+const documenti = Array.isArray(payload?.data) ? (payload.data as DocumentoItem[]) : [];
+---
+
+<BaseLayout
+	title={page?.title || page?.Titolo || 'Documentazione'}
+	seoTitle={page?.seo_title}
+	seoDescription={page?.seo_desc}
+>
+	<PageContent
+		page={page}
+		notFoundTitle="Pagina documentazione non trovata"
+		notFoundMessage="La pagina documentazione richiesta non esiste."
+	/>
+
+	<section id="documenti" class="documentazione_page">
+		<div class="documentazione_intro">
+			<h2>Documenti disponibili</h2>
+			<p>Elenco aggiornato dei file caricati nella collection Documentazione.</p>
+		</div>
+
+		{documenti.length > 0 ? (
+			<div id="documentazione-grid" class="documentazione_grid">
+				{documenti.map((documento) => {
+					const file = getFileData(documento.file);
+					if (!file) return null;
+					return (
+						<article class="documento_card">
+							<div class="documento_icon" aria-hidden="true">
+								<img src={DOCUMENT_ICON_URL} alt="" loading="lazy" />
+							</div>
+							<h2>{documento.nome_file || file.label}</h2>
+							{documento.descrizione && <p>{documento.descrizione}</p>}
+							<a class="MainButton" href={file.href} target="_blank" rel="noopener noreferrer">
+								Scarica file
+							</a>
+						</article>
+					);
+				})}
+			</div>
+		) : (
+			<p id="documentazione-empty" class="documentazione_empty">Nessun documento disponibile al momento.</p>
+		)}
+	</section>
+
+	<script is:inline define:vars={{ directusUrl: DIRECTUS_URL, documentIconUrl: DOCUMENT_ICON_URL }}>
+		(() => {
+			const grid = document.getElementById('documentazione-grid');
+			const empty = document.getElementById('documentazione-empty');
+			const section = document.getElementById('documenti');
+			if (!section) return;
+
+			const escapeHtml = (value) =>
+				String(value)
+					.replaceAll('&', '&amp;')
+					.replaceAll('<', '&lt;')
+					.replaceAll('>', '&gt;')
+					.replaceAll('"', '&quot;')
+					.replaceAll("'", '&#39;');
+
+			const render = (items) => {
+				const valid = items
+					.map((entry) => {
+						const rawFile = entry?.file;
+						const fileId = typeof rawFile === 'object' && rawFile ? rawFile.id : typeof rawFile === 'string' ? rawFile : '';
+						if (!fileId) return null;
+						const label = entry?.nome_file || rawFile?.title || rawFile?.filename_download || 'Documento';
+						const filename = rawFile?.filename_download || rawFile?.title || '';
+						const desc = entry?.descrizione || '';
+						return {
+							label: escapeHtml(label),
+							type: escapeHtml((filename.split('.').pop() || 'File').toUpperCase()),
+							desc: escapeHtml(desc),
+							href: `${directusUrl}/assets/${encodeURIComponent(fileId)}`,
+						};
+					})
+					.filter(Boolean);
+
+				if (valid.length === 0) {
+					if (grid) grid.remove();
+					if (!empty) {
+						const p = document.createElement('p');
+						p.id = 'documentazione-empty';
+						p.className = 'documentazione_empty';
+						p.textContent = 'Nessun documento disponibile al momento.';
+						section.appendChild(p);
+					}
+					return;
+				}
+
+				const cards = valid
+					.map(
+						(item) =>
+							`<article class="documento_card"><div class="documento_icon" aria-hidden="true"><img src="${documentIconUrl}" alt="" loading="lazy" /></div><h2>${item.label}</h2>${item.desc ? `<p>${item.desc}</p>` : ''}<a class="MainButton" href="${item.href}" target="_blank" rel="noopener noreferrer">Scarica file</a></article>`
+					)
+					.join('');
+
+				let nextGrid = grid;
+				if (!nextGrid) {
+					nextGrid = document.createElement('div');
+					nextGrid.id = 'documentazione-grid';
+					nextGrid.className = 'documentazione_grid';
+					section.appendChild(nextGrid);
+				}
+				nextGrid.innerHTML = cards;
+				if (empty) empty.remove();
+			};
+
+			fetch(
+				`${directusUrl}/items/Documentazione?fields=id,nome_file,descrizione,file.id,file.title,file.filename_download&sort=-id`
+			)
+				.then((res) => res.json())
+				.then((payload) => {
+					const items = Array.isArray(payload?.data) ? payload.data : [];
+					render(items);
+				})
+				.catch(() => {});
+		})();
+	</script>
+</BaseLayout>
+
+<style is:global>
+	.documentazione_page {
+		max-width: var(--max-width);
+		margin: 0 auto;
+		padding: 40px 20px 80px;
+	}
+
+	.documentazione_intro {
+		margin-bottom: 30px;
+	}
+
+	.documentazione_intro h1 {
+		margin: 0 0 10px;
+		font-size: clamp(2rem, 4vw, 3rem);
+	}
+
+	.documentazione_intro h2 {
+		margin: 0 0 10px;
+		font-size: clamp(1.5rem, 3vw, 2rem);
+	}
+
+	.documentazione_intro p {
+		margin: 0;
+		color: var(--text-color-secondary);
+	}
+
+	.documentazione_grid {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 20px;
+	}
+
+	@media (max-width: 1200px) {
+		.documentazione_grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 900px) {
+		.documentazione_grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 600px) {
+		.documentazione_grid {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.documento_card {
+		position: relative;
+		border: 1px solid #e4e9f1;
+		border-radius: 20px;
+		box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+		height: 100%;
+		background-color: #fff;
+		padding:30px;
+		transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+	}
+
+	.documento_card:hover {
+		transform: translateY(-4px);
+		box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+		border-color: #cfd8e6;
+	}
+
+	.documento_icon {
+		width: 56px;
+		height: 56px;
+		display: grid;
+		place-items: center;
+		border-radius: 14px;
+		box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+	}
+
+	.documento_card .documento_icon img {
+		width: auto;
+		object-fit: contain;
+		display: block;
+	}
+
+	.documento_card h2 {
+		margin: 0;
+		font-size: 1.2rem;
+		line-height: 1.3;
+		color: #0f172a;
+	}
+
+	.documento_card p {
+		margin: 0;
+		color: #475569;
+		line-height: 1.5;
+		flex: 1 1 auto;
+	}
+
+	.documento_card .MainButton {
+		align-self: flex-start;
+		margin-top: auto;
+		margin-bottom: 30px;
+	}
+
+	.documentazione_empty {
+		margin-top: 8px;
+		color: var(--text-color-secondary);
+	}
+</style>
