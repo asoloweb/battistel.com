@@ -33,14 +33,14 @@ type DocumentoItem = {
 	file?: DocumentoFile | string | null;
 };
 
-async function fetchDocumentazionePage() {
+async function fetchCompliancePage() {
 	const pageUrl = directusItemsUrl('pages');
 	pageUrl.searchParams.set(
 		'fields',
 		'*,slug.*,editor.collection,editor.item.*,editor.item.slider.*,editor.item.slider.slides.item.*,editor.item.card.single_card_id.*,editor.item.card.single_card_id.link.id,editor.item.card.single_card_id.link.slug,editor.item.card.single_card_id.link.title'
 	);
 	pageUrl.searchParams.set('filter[status][_eq]', 'published');
-	pageUrl.searchParams.set('filter[slug][_eq]', 'documentazione');
+	pageUrl.searchParams.set('filter[slug][_eq]', 'compliance');
 
 	const pageResponse = await directusFetch(pageUrl);
 	const pagePayload = await pageResponse.json();
@@ -70,19 +70,11 @@ function getFileData(file: DocumentoItem['file']) {
 	};
 }
 
-function getFileType(filename: string) {
-	if (!filename) return 'File';
-	const parts = filename.split('.');
-	if (parts.length < 2) return 'File';
-	const ext = parts[parts.length - 1]?.trim().toUpperCase();
-	return ext || 'File';
-}
-
-const page = await fetchDocumentazionePage();
+const page = await fetchCompliancePage();
 
 const docsUrl = directusItemsUrl('Documentazione');
 docsUrl.searchParams.set('fields', 'id,nome_file,descrizione,tipologia,file.id,file.title,file.filename_download');
-docsUrl.searchParams.set('filter[tipologia][_eq]', 'documentazione');
+docsUrl.searchParams.set('filter[tipologia][_eq]', 'compliance');
 docsUrl.searchParams.set('sort', '-id');
 
 const response = await directusFetch(docsUrl);
@@ -91,20 +83,20 @@ const documenti = Array.isArray(payload?.data) ? (payload.data as DocumentoItem[
 ---
 
 <BaseLayout
-	title={page?.title || page?.Titolo || 'Documentazione'}
+	title={page?.title || page?.Titolo || 'Compliance'}
 	seoTitle={page?.seo_title}
 	seoDescription={page?.seo_desc}
 >
 	<PageContent
 		page={page}
-		notFoundTitle="Pagina documentazione non trovata"
-		notFoundMessage="La pagina documentazione richiesta non esiste."
+		notFoundTitle="Pagina compliance non trovata"
+		notFoundMessage="La pagina compliance richiesta non esiste."
 	/>
 
 	<section id="documenti" class="documentazione_page">
 		<div class="documentazione_intro">
-			<h2>Documenti disponibili</h2>
-			<p>Elenco aggiornato dei file caricati nella collection Documentazione.</p>
+			<h2>Documenti di compliance</h2>
+			<p>Elenco aggiornato dei file di compliance caricati nella collection Documentazione.</p>
 		</div>
 
 		{documenti.length > 0 ? (
@@ -153,11 +145,9 @@ const documenti = Array.isArray(payload?.data) ? (payload.data as DocumentoItem[
 						const fileId = typeof rawFile === 'object' && rawFile ? rawFile.id : typeof rawFile === 'string' ? rawFile : '';
 						if (!fileId) return null;
 						const label = entry?.nome_file || rawFile?.title || rawFile?.filename_download || 'Documento';
-						const filename = rawFile?.filename_download || rawFile?.title || '';
 						const desc = entry?.descrizione || '';
 						return {
 							label: escapeHtml(label),
-							type: escapeHtml((filename.split('.').pop() || 'File').toUpperCase()),
 							desc: escapeHtml(desc),
 							href: `${directusUrl}/assets/${encodeURIComponent(fileId)}`,
 						};
@@ -195,7 +185,7 @@ const documenti = Array.isArray(payload?.data) ? (payload.data as DocumentoItem[
 			};
 
 			fetch(
-				`${directusUrl}/items/Documentazione?fields=id,nome_file,descrizione,tipologia,file.id,file.title,file.filename_download&filter[tipologia][_eq]=documentazione&sort=-id`
+				`${directusUrl}/items/Documentazione?fields=id,nome_file,descrizione,tipologia,file.id,file.title,file.filename_download&filter[tipologia][_eq]=compliance&sort=-id`
 			)
 				.then((res) => res.json())
 				.then((payload) => {
@@ -267,7 +257,7 @@ const documenti = Array.isArray(payload?.data) ? (payload.data as DocumentoItem[
 		gap: 16px;
 		height: 100%;
 		background-color: #fff;
-		padding:30px;
+		padding: 30px;
 		transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
 	}
 

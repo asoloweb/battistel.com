@@ -176,14 +176,66 @@ const brands = await fetchBrands();
 const brandLogoById = buildBrandLogoMap(brands);
 const productSlugMap = buildProductSlugMap(products);
 
+const categoryLabelById = new Map<string, string>();
+const categoryParentById = new Map<string, string>();
+const categoryChildrenByParent = new Map<string, string[]>();
+
+for (const category of categories) {
+	const categoryId = String(category.id || '').trim();
+	if (!categoryId) continue;
+	const label = String(category.titolo_categoria || '').trim();
+	if (!label) continue;
+	categoryLabelById.set(categoryId, label);
+	const parentId = getParentKey(category);
+	if (parentId) {
+		categoryParentById.set(categoryId, parentId);
+		const list = categoryChildrenByParent.get(parentId) || [];
+		list.push(categoryId);
+		categoryChildrenByParent.set(parentId, list);
+	}
+}
+
+function collectDescendantLabels(rootId: string): string[] {
+	const labels: string[] = [];
+	const stack = [...(categoryChildrenByParent.get(rootId) || [])];
+	const visited = new Set<string>();
+	while (stack.length > 0) {
+		const current = stack.pop() || '';
+		if (!current || visited.has(current)) continue;
+		visited.add(current);
+		const label = categoryLabelById.get(current);
+		if (label) labels.push(label);
+		const children = categoryChildrenByParent.get(current) || [];
+		for (const child of children) stack.push(child);
+	}
+	return labels;
+}
+
 const topLevelCategories = categories.filter((category) => !getParentKey(category));
 
-const usedSlugs = new Set<string>();
-const categoryCards = topLevelCategories
+function collectAncestorLabels(categoryId: string): string[] {
+	const labels: string[] = [];
+	const visited = new Set<string>();
+	let current = categoryParentById.get(categoryId) || '';
+	while (current && !visited.has(current)) {
+		visited.add(current);
+		const label = categoryLabelById.get(current);
+		if (label) labels.push(label);
+		current = categoryParentById.get(current) || '';
+	}
+	return labels;
+}
+
+function buildCategoryCards(source: Category[]) {
+	const usedSlugs = new Set<string>();
+	return source
 	.filter((category) => category?.id !== null && category?.id !== undefined)
 	.map((category) => {
 		const baseSlug = slugifyLabel(category.titolo_categoria) || String(category.id || '').trim();
 		if (!baseSlug) return null;
+		const categoryId = String(category.id || '').trim();
+		const descendantLabels = categoryId ? collectDescendantLabels(categoryId) : [];
+		const ancestorLabels = categoryId ? collectAncestorLabels(categoryId) : [];
 		let slug = baseSlug;
 		if (usedSlugs.has(slug)) slug = `${baseSlug}-${String(category.id)}`;
 		usedSlugs.add(slug);
@@ -197,12 +249,16 @@ const categoryCards = topLevelCategories
 			description: category.descrizione_categoria || '',
 			href: `/prodotti/categoria/${encodeURIComponent(slug)}`,
 			imageSrc: resolveImageSrc(imageField) || CATEGORY_CARD_IMAGE,
-			searchText: [category.titolo_categoria || '', category.descrizione_categoria || ''].join(' ').toLowerCase(),
+			searchText: [category.titolo_categoria || '', category.descrizione_categoria || '', ...ancestorLabels, ...descendantLabels].join(' ').toLowerCase(),
 		};
 	})
 	.filter(
 		(entry): entry is { title: string; description: string; href: string; imageSrc: string; searchText: string } => Boolean(entry)
 	);
+}
+
+const categoryCardsTopLevel = buildCategoryCards(topLevelCategories);
+const categoryCardsSearch = buildCategoryCards(categories);
 
 const productsData = products
 	.map((product) => {
@@ -261,7 +317,7 @@ const productsData = products
 			<div class="products_result_section" data-products-overview-categories-results>
 				<h3 class="products_result_section_title">Categorie</h3>
 				<div class="categorie_prodotti_grid" data-products-overview-category-grid>
-					{categoryCards.map((entry) => (
+					{categoryCardsSearch.map((entry) => (
 						<a class="categorie_prodotti_card" href={entry.href} data-search={entry.searchText}>
 							{entry.imageSrc && (
 								<div class="categorie_prodotti_media">
@@ -294,10 +350,10 @@ const productsData = products
 			<p class="products_empty" data-products-overview-empty>Nessun risultato trovato.</p>
 		</div>
 
-		{categoryCards.length > 0 && (
+		{categoryCardsTopLevel.length > 0 && (
 			<div class="categorie_prodotti_wrap" data-products-overview-categories>
 				<div class="categorie_prodotti_grid">
-					{categoryCards.map((single) => (
+					{categoryCardsTopLevel.map((single) => (
 						<a class="categorie_prodotti_card" href={single.href}>
 							{single.imageSrc && (
 								<div class="categorie_prodotti_media">
@@ -332,6 +388,35 @@ const productsData = products
 		let searchTerm = querySearchTerm;
 		let activeSearchTerm = querySearchTerm;
 
+		const normalizeText = (value) =>
+			String(value || '')
+				.toLowerCase()
+				.normalize('NFD')
+				.replace(/[\u0300-\u036f]/g, ' ')
+				.replace(/[^a-z0-9\s-]/g, ' ')
+				.replace(/\s+/g, ' ')
+				.trim();
+
+		const stemToken = (token) => token.replace(/[aeio]$/g, '').replace(/[ie]$/g, '');
+
+		const matchesSearch = (searchable, query) => {
+			const normalizedQuery = normalizeText(query);
+			if (!normalizedQuery) return true;
+			const normalizedSearchable = normalizeText(searchable);
+			if (normalizedSearchable.includes(normalizedQuery)) return true;
+
+			if (normalizedQuery.length < 4) return false;
+			const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+			const searchableTokens = normalizedSearchable.split(' ').filter(Boolean);
+			return queryTokens.every((queryToken) => {
+				const queryStem = stemToken(queryToken);
+				return searchableTokens.some((searchToken) => {
+					const searchStem = stemToken(searchToken);
+					return searchToken.startsWith(queryToken) || queryToken.startsWith(searchToken) || searchStem.startsWith(queryStem);
+				});
+			});
+		};
+
 		if (searchInput instanceof HTMLInputElement) {
 			searchInput.value = querySearchTermRaw.trim();
 		}
@@ -342,14 +427,14 @@ const productsData = products
 
 			productCards.forEach((card) => {
 				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
-				const match = !activeSearchTerm || searchable.includes(activeSearchTerm);
+				const match = matchesSearch(searchable, activeSearchTerm);
 				card.style.display = match ? '' : 'none';
 				if (match) visibleProductCount += 1;
 			});
 
 			categoryCards.forEach((card) => {
 				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
-				const match = !activeSearchTerm || searchable.includes(activeSearchTerm);
+				const match = matchesSearch(searchable, activeSearchTerm);
 				card.style.display = match ? '' : 'none';
 				if (match) visibleCategoryCount += 1;
 			});

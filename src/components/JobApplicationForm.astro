@@ -114,7 +114,10 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 				let cvBase64 = '';
 
 				if (cvFile) {
-					if (cvFile.type !== 'application/pdf') {
+					const mimeType = (cvFile.type || '').toLowerCase();
+					const hasPdfMime = mimeType === 'application/pdf' || mimeType === 'application/x-pdf';
+					const hasPdfExtension = (cvFile.name || '').toLowerCase().endsWith('.pdf');
+					if (!hasPdfMime && !hasPdfExtension) {
 						throw new Error('Formato file non valido: carica un PDF.');
 					}
 
@@ -156,6 +159,15 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					cv_filename: cvFilename,
 					cv_mime: cvMime,
 					cv_base64: cvBase64,
+					cv_data_url: cvBase64 ? `data:${cvMime || 'application/pdf'};base64,${cvBase64}` : '',
+					cv_size: cvFile?.size || 0,
+				};
+
+				const requestBody = {
+					...payload,
+					data: payload,
+					payload,
+					body: payload,
 				};
 
 				const response = await fetch(webhookUrl, {
@@ -163,12 +175,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					headers: {
 						'Content-Type': 'application/json',
 					},
-					body: JSON.stringify({
-						...payload,
-						data: payload,
-						payload,
-						body: payload,
-					}),
+					body: JSON.stringify(requestBody),
 				});
 
 				if (!response.ok) {

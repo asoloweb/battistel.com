@@ -256,6 +256,25 @@ const subcategoryCards = selectedCategoryNode
 const hasSubcategories = subcategoryCards.length > 0;
 const hasSearchQuery = searchQuery.length > 0;
 
+// Raccoglie i token di tutte le sottocategorie (ricorsivamente) della categoria corrente
+function collectDescendantSlugs(token: string, treeMap: typeof categoryTreeMap): Set<string> {
+	const result = new Set<string>();
+	for (const node of treeMap.values()) {
+		if (node.parentToken === token) {
+			result.add(node.slug);
+			for (const descendantSlug of collectDescendantSlugs(node.token, treeMap)) {
+				result.add(descendantSlug);
+			}
+		}
+	}
+	return result;
+}
+
+// Calcola tutti gli slug validi per la categoria corrente (se stessa + tutte le discendenti)
+const validCategorySlugs: Set<string> = selectedCategoryNode
+	? new Set([filterCategorySlug, ...collectDescendantSlugs(selectedCategoryNode.token, categoryTreeMap)])
+	: new Set();
+
 const productsData = products
 	.map((product) => {
 		if (typeof product.id !== 'number') return null;
@@ -263,19 +282,26 @@ const productsData = products
 		if (!slug) return null;
 		const directCategories = getProductCategories(product);
 		const categorySlugs = new Set<string>();
+		const categorySearchTokens = new Set<string>();
 
 		for (const category of directCategories) {
 			let currentToken: string | undefined = category.token;
 			categorySlugs.add(category.slug);
+			categorySearchTokens.add(category.label);
+			categorySearchTokens.add(category.slug.replace(/-/g, ' '));
 			while (currentToken) {
 				const parentToken = parentByCategory.get(currentToken);
 				if (!parentToken) break;
 				const parentNode = categoryTreeMap.get(parentToken);
 				if (!parentNode) break;
 				categorySlugs.add(parentNode.slug);
+				categorySearchTokens.add(parentNode.title);
+				categorySearchTokens.add(parentNode.slug.replace(/-/g, ' '));
 				currentToken = parentToken;
 			}
 		}
+
+		const tags = extractProductTags(product);
 
 		return {
 			title: getProductTitle(product) || 'Prodotto',
@@ -288,14 +314,20 @@ const productsData = products
 				format: 'webp',
 			}),
 			categorySlugs: Array.from(categorySlugs),
-			tags: extractProductTags(product),
-			searchText: [getProductTitle(product) || 'Prodotto', String(product.codice_prodotto || '').trim()]
+			tags,
+			searchText: [
+				getProductTitle(product) || 'Prodotto',
+				String(product.codice_prodotto || '').trim(),
+				...Array.from(categorySearchTokens),
+				...tags.map((tag) => tag.label),
+			]
 				.join(' ')
 				.toLowerCase(),
 		};
 	})
 	.filter((entry): entry is { title: string; href: string; imageSrc: string; categorySlugs: string[]; tags: { slug: string; label: string }[]; searchText: string } => Boolean(entry))
-	.filter((entry) => entry.categorySlugs.includes(filterCategorySlug));
+	// Filtra per categoria corrente + tutte le sue discendenti
+	.filter((entry) => entry.categorySlugs.some((s) => validCategorySlugs.has(s)));
 
 const subcategorySearchMap = new Map<string, string>();
 for (const card of subcategoryCards) {
@@ -322,7 +354,7 @@ const searchedSubcategoryCards = hasSearchQuery
 	? subcategoryCards.filter((entry) => (subcategorySearchMap.get(entry.slug) || entry.title.toLowerCase()).includes(searchQuery))
 	: subcategoryCards;
 const searchedProductsData = hasSearchQuery
-	? productsData.filter((entry) => entry.title.toLowerCase().includes(searchQuery))
+	? productsData.filter((entry) => entry.searchText.includes(searchQuery))
 	: productsData;
 const showGroupedSearchResults = hasSubcategories && hasSearchQuery;
 const displayedProductsData = hasSearchQuery ? searchedProductsData : productsData;
@@ -353,9 +385,14 @@ const displayedProductsData = hasSearchQuery ? searchedProductsData : productsDa
 
 		{hasSubcategories && !hasSearchQuery ? (
 			<>
-				<div class="products_subcategories_grid">
+				<div class="products_results_head" data-subcategories-results-head hidden>
+					<p class="products_results_count" data-subcategories-results-count></p>
+				</div>
+				<div class="products_result_section" data-subcategories-categories-section>
+					<h3 class="products_result_section_title" data-subcategories-categories-title hidden>Categorie</h3>
+					<div class="products_subcategories_grid">
 					{subcategoryCards.map((entry) => (
-						<a class="products_subcategory_card" href={entry.href} data-search={subcategorySearchMap.get(entry.slug) || entry.title.toLowerCase()}>
+						<a class="products_subcategory_card" href={entry.href} data-search-category={[entry.title, entry.description].join(' ').toLowerCase()} data-subcategory-card>
 							{entry.imageSrc && (
 								<div class="products_subcategory_media">
 									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
@@ -365,8 +402,25 @@ const displayedProductsData = hasSearchQuery ? searchedProductsData : productsDa
 							{entry.description && <p class="products_subcategory_description">{entry.description}</p>}
 						</a>
 					))}
+					</div>
 				</div>
-				<p class="products_empty_static products_empty_subcategories"></p>
+
+				<div class="products_result_section" data-subcategories-products-section hidden>
+					<h3 class="products_result_section_title">Prodotti</h3>
+					<div class="products_grid">
+						{productsData.map((entry) => (
+							<a class="products_card" href={entry.href} data-tags={entry.tags.map((tag) => tag.slug).join(',')} data-search={entry.searchText} data-subcategory-product-card>
+								{entry.imageSrc && (
+									<div class="products_card_media">
+										<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+									</div>
+								)}
+								<h3 class="products_card_title">{entry.title}</h3>
+							</a>
+						))}
+					</div>
+				</div>
+				<p class="products_empty_static products_empty_subcategories" data-subcategories-empty></p>
 			</>
 		) : showGroupedSearchResults ? (
 			<>
@@ -610,6 +664,68 @@ const displayedProductsData = hasSearchQuery ? searchedProductsData : productsDa
 		}
 
 		applyFilters();
+	})();
+</script>}
+
+{hasSubcategories && <script is:inline>
+	(() => {
+		const categoryCards = Array.from(document.querySelectorAll('[data-subcategory-card]'));
+		const productCards = Array.from(document.querySelectorAll('[data-subcategory-product-card]'));
+		if (categoryCards.length === 0) return;
+		const emptyElement = document.querySelector('[data-subcategories-empty]');
+		const headElement = document.querySelector('[data-subcategories-results-head]');
+		const countElement = document.querySelector('[data-subcategories-results-count]');
+		const categoriesTitleElement = document.querySelector('[data-subcategories-categories-title]');
+		const categoriesSectionElement = document.querySelector('[data-subcategories-categories-section]');
+		const productsSectionElement = document.querySelector('[data-subcategories-products-section]');
+
+		const normalizeText = (value) =>
+			String(value || '')
+				.toLowerCase()
+				.normalize('NFD')
+				.replace(/[\u0300-\u036f]/g, '')
+				.replace(/[^a-z0-9\s-]/g, ' ')
+				.replace(/\s+/g, ' ')
+				.trim();
+
+		const queryRaw = new URLSearchParams(window.location.search).get('q') || '';
+		const query = normalizeText(queryRaw);
+		if (!query) return;
+
+		let visibleCategoryCount = 0;
+		categoryCards.forEach((card) => {
+			const searchable = normalizeText(card.getAttribute('data-search-category') || '');
+			const match = searchable.includes(query);
+			card.style.display = match ? '' : 'none';
+			if (match) visibleCategoryCount += 1;
+		});
+
+		let visibleProductCount = 0;
+		productCards.forEach((card) => {
+			const searchable = normalizeText(card.getAttribute('data-search') || '');
+			const match = searchable.includes(query);
+			card.style.display = match ? '' : 'none';
+			if (match) visibleProductCount += 1;
+		});
+
+		const visibleCount = visibleCategoryCount + visibleProductCount;
+
+		if (headElement instanceof HTMLElement) headElement.hidden = false;
+		if (countElement instanceof HTMLElement) {
+			countElement.textContent = `${visibleCount} risultati (${visibleCategoryCount} categorie, ${visibleProductCount} prodotti)`;
+		}
+		if (categoriesTitleElement instanceof HTMLElement) {
+			categoriesTitleElement.hidden = visibleCategoryCount === 0;
+		}
+		if (categoriesSectionElement instanceof HTMLElement) {
+			categoriesSectionElement.hidden = visibleCategoryCount === 0;
+		}
+		if (productsSectionElement instanceof HTMLElement) {
+			productsSectionElement.hidden = visibleProductCount === 0;
+		}
+		if (emptyElement instanceof HTMLElement) {
+			emptyElement.textContent = visibleCount > 0 ? '' : 'Nessun risultato trovato in questa categoria.';
+		}
 	})();
 </script>}
 
