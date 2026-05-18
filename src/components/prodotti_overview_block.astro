@@ -6,6 +6,7 @@ import { slugifyLabel } from '../lib/slug';
 
 const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/491185c0-ede3-4ffd-b149-5872266922fa';
 const PRODUCT_CARD_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
+const initialSearchQuery = (Astro.url.searchParams.get('q') || '').trim();
 
 interface Category {
 	id?: number | string;
@@ -155,11 +156,16 @@ function extractProductTags(product: Product) {
 	return Array.from(new Map(tags.map((entry) => [entry.slug, entry.label])), ([slug, label]) => ({ slug, label }));
 }
 
-function getProductBrandName(product: Product) {
-	const brand = product?.marchio;
-	if (!brand || typeof brand !== 'object') return '';
-	const brandName = brand.nome_marchio;
-	return typeof brandName === 'string' ? brandName.trim() : '';
+function extractSearchableTagLabels(product: Product) {
+	if (!Array.isArray(product?.Tag)) return [];
+	const labels = product.Tag
+		.map((entry) => {
+			const related = entry?.Tags_id && typeof entry.Tags_id === 'object' ? entry.Tags_id : null;
+			return related?.titolo_tag?.trim() || '';
+		})
+		.filter(Boolean);
+
+	return Array.from(new Set(labels));
 }
 
 function splitCommaValues(value: string | undefined) {
@@ -266,16 +272,8 @@ const productsData = products
 		const slug = productSlugMap.get(product.id) || '';
 		if (!slug) return null;
 		const title = getProductTitle(product) || 'Prodotto';
-		const categories = Array.isArray(product.Categoria)
-			? product.Categoria
-					.map((entry) => {
-						const category = entry?.Categorie_id && typeof entry.Categorie_id === 'object' ? entry.Categorie_id : null;
-						return category?.titolo_categoria?.trim() || '';
-					})
-					.filter(Boolean)
-			: [];
 		const tags = extractProductTags(product);
-		const brandName = getProductBrandName(product);
+		const searchableTags = extractSearchableTagLabels(product);
 		const packaging = splitCommaValues(product.imballo);
 
 		return {
@@ -288,7 +286,7 @@ const productsData = products
 				quality: 72,
 				format: 'webp',
 			}),
-			searchText: [title, brandName, ...categories, ...tags.map((tag) => tag.label), ...packaging].join(' ').toLowerCase(),
+			searchText: [title, ...searchableTags, ...packaging].join(' ').toLowerCase(),
 		};
 	})
 	.filter((entry): entry is { title: string; href: string; imageSrc: string; searchText: string } => Boolean(entry));
@@ -296,12 +294,14 @@ const productsData = products
 
 <section class="products_overview" data-aos="fade-up" data-aos-duration="1500">
 	<div class="products_overview_inner">
-		<form class="products_search" data-products-overview-search-form role="search">
+		<form class="products_search" data-products-overview-search-form role="search" method="get">
 			<input
 				type="search"
+				name="q"
 				class="products_search_input"
 				data-products-overview-search
-				placeholder="Cerca per prodotto, categoria, tag o imballo"
+				value={initialSearchQuery}
+				placeholder="Cerca per prodotto, tag o imballo"
 				aria-label="Cerca prodotti"
 			/>
 			<button class="products_search_button" type="submit">Cerca</button>
@@ -397,24 +397,12 @@ const productsData = products
 				.replace(/\s+/g, ' ')
 				.trim();
 
-		const stemToken = (token) => token.replace(/[aeio]$/g, '').replace(/[ie]$/g, '');
-
 		const matchesSearch = (searchable, query) => {
 			const normalizedQuery = normalizeText(query);
 			if (!normalizedQuery) return true;
 			const normalizedSearchable = normalizeText(searchable);
-			if (normalizedSearchable.includes(normalizedQuery)) return true;
-
-			if (normalizedQuery.length < 4) return false;
 			const queryTokens = normalizedQuery.split(' ').filter(Boolean);
-			const searchableTokens = normalizedSearchable.split(' ').filter(Boolean);
-			return queryTokens.every((queryToken) => {
-				const queryStem = stemToken(queryToken);
-				return searchableTokens.some((searchToken) => {
-					const searchStem = stemToken(searchToken);
-					return searchToken.startsWith(queryToken) || queryToken.startsWith(searchToken) || searchStem.startsWith(queryStem);
-				});
-			});
+			return queryTokens.every((token) => normalizedSearchable.includes(token));
 		};
 
 		if (searchInput instanceof HTMLInputElement) {
@@ -461,8 +449,18 @@ const productsData = products
 		if (searchForm instanceof HTMLFormElement) {
 			searchForm.addEventListener('submit', (event) => {
 				event.preventDefault();
-				activeSearchTerm = searchTerm;
-				applySearch();
+				const submittedTerm = searchInput instanceof HTMLInputElement
+					? searchInput.value.trim().toLowerCase()
+					: searchTerm;
+				const nextParams = new URLSearchParams(window.location.search);
+				if (submittedTerm) {
+					nextParams.set('q', submittedTerm);
+				} else {
+					nextParams.delete('q');
+				}
+				const query = nextParams.toString();
+				const targetUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+				window.location.assign(targetUrl);
 			});
 		}
 

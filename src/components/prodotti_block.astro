@@ -64,6 +64,7 @@ type CategoryTreeBranch = {
 };
 
 const { titolo = '' } = Astro.props;
+const initialSearchQuery = (Astro.url.searchParams.get('q') || '').trim();
 
 async function fetchCategories(): Promise<Category[]> {
 	try {
@@ -89,6 +90,9 @@ async function fetchProducts(): Promise<Product[]> {
 			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag,Tag.Tags_id.nascosto'
 		);
 		url.searchParams.set('filter[status][_eq]', 'published');
+		if (initialSearchQuery) {
+			url.searchParams.set('search', initialSearchQuery);
+		}
 		url.searchParams.set('limit', '-1');
 		url.searchParams.set('sort', 'sort,codice_prodotto');
 		const response = await directusFetch(url);
@@ -202,9 +206,8 @@ function extractProductTags(product: Product) {
 				return { slug: normalizeFilterToken(label), label };
 			})
 			.filter((entry): entry is { slug: string; label: string } => Boolean(entry?.slug));
-		if (fromRelations.length > 0) {
-			return Array.from(new Map(fromRelations.map((entry) => [entry.slug, entry.label])), ([slug, label]) => ({ slug, label }));
-		}
+
+		return Array.from(new Map(fromRelations.map((entry) => [entry.slug, entry.label])), ([slug, label]) => ({ slug, label }));
 	}
 
 	const tagFields = ['tags', 'tag', 'filtri_tag', 'tag_filtri', 'tag_prodotto', 'etichette'];
@@ -391,11 +394,13 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 		<div class="products_block_inner">
 			{titolo && <h2 class="products_block_title">{titolo}</h2>}
 
-			<form class="products_search" data-products-search-form role="search">
+			<form class="products_search" data-products-search-form role="search" method="get">
 				<input
 					type="search"
+					name="q"
 					class="products_search_input"
 					data-products-search
+					value={initialSearchQuery}
 					placeholder="Cerca per prodotto, categoria, tag o imballo"
 					aria-label="Cerca prodotti"
 				/>
@@ -477,6 +482,7 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 
 		const params = new URLSearchParams(window.location.search);
 		const queryCategory = (params.get('categoria') || '').trim();
+		const querySearch = (params.get('q') || '').trim().toLowerCase();
 
 		const availableCategories = new Set(
 			categoryButtons.map((button) => button.getAttribute('data-tree-category')).filter(Boolean)
@@ -485,8 +491,12 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 		if (!availableCategories.has(selectedCategory)) selectedCategory = 'all';
 		const defaultCategory = selectedCategory;
 		const selectedTags = new Set();
-		let searchTerm = '';
-		let activeSearchTerm = '';
+		let searchTerm = querySearch;
+		let activeSearchTerm = querySearch;
+
+		if (searchInput instanceof HTMLInputElement && querySearch) {
+			searchInput.value = querySearch;
+		}
 
 		const updateTagPillsToggle = () => {
 			if (!(selectedCategoryTagWrap instanceof HTMLElement) || !(tagPillsToggleButton instanceof HTMLButtonElement)) return;
@@ -528,13 +538,18 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 			productsLayout.classList.toggle('is-search-mode', Boolean(activeSearchTerm));
 		};
 
-		const updateCategoryUrl = () => {
-			if (activeSearchTerm) return;
+		const updateUrl = () => {
 			const nextParams = new URLSearchParams(window.location.search);
-			if (selectedCategory === 'all') {
+			if (activeSearchTerm) {
+				nextParams.set('q', activeSearchTerm);
 				nextParams.delete('categoria');
 			} else {
-				nextParams.set('categoria', selectedCategory);
+				nextParams.delete('q');
+				if (selectedCategory === 'all') {
+					nextParams.delete('categoria');
+				} else {
+					nextParams.set('categoria', selectedCategory);
+				}
 			}
 			const query = nextParams.toString();
 			const targetUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
@@ -679,7 +694,7 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 			}
 
 			updateCategoryUI();
-			updateCategoryUrl();
+			updateUrl();
 			updateSearchModeUI();
 			updateClearButton();
 		};
@@ -728,14 +743,27 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 		if (searchInput instanceof HTMLInputElement) {
 			searchInput.addEventListener('input', () => {
 				searchTerm = searchInput.value.trim().toLowerCase();
+				activeSearchTerm = searchTerm;
+				applyFilters();
 			});
 		}
 
 		if (searchForm instanceof HTMLFormElement) {
 			searchForm.addEventListener('submit', (event) => {
 				event.preventDefault();
-				activeSearchTerm = searchTerm;
-				applyFilters();
+				const submittedTerm = searchInput instanceof HTMLInputElement
+					? searchInput.value.trim().toLowerCase()
+					: searchTerm;
+				const nextParams = new URLSearchParams(window.location.search);
+				nextParams.delete('categoria');
+				if (submittedTerm) {
+					nextParams.set('q', submittedTerm);
+				} else {
+					nextParams.delete('q');
+				}
+				const query = nextParams.toString();
+				const targetUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+				window.location.assign(targetUrl);
 			});
 		}
 
