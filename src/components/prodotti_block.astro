@@ -347,6 +347,7 @@ const productsData = products.map((product) => {
 		categorySlugs: Array.from(categoriesWithAncestors),
 		categoryLabels,
 		tags,
+		packaging,
 		searchText: [
 			title,
 			...categoryLabels,
@@ -437,6 +438,7 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 									data-categories={entry.categorySlugs.join(',')}
 									data-tags={entry.tags.map((tag) => tag.slug).join(',')}
 									data-search={entry.searchText}
+									data-packaging={entry.packaging.join('||').toLowerCase()}
 								>
 									{entry.imageSrc && (
 										<div class="products_card_media">
@@ -664,6 +666,45 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 			}
 		};
 
+		const normalizeText = (value) =>
+			String(value || '')
+				.toLowerCase()
+				.normalize('NFD')
+				.replace(/[\u0300-\u036f]/g, ' ')
+				.replace(/[^a-z0-9\s-]/g, ' ')
+				.replace(/\s+/g, ' ')
+				.trim();
+
+		const packagingTypes = new Set(['tanica', 'fusto', 'secchio', 'barile', 'cisterna', 'flacone', 'bottiglia', 'lattina', 'sacco', 'cartuccia', 'latta']);
+
+		const parsePackagingQuery = (query) => {
+			const normalized = normalizeText(query);
+			if (!normalized) return null;
+			const tokens = normalized.split(' ').filter(Boolean);
+			if (tokens.length < 2) return null;
+			const type = tokens[0];
+			if (!packagingTypes.has(type)) return null;
+			const sizeToken = tokens.find((token) => /^\d+(?:[.,]\d+)?$/.test(token));
+			if (!sizeToken) return null;
+			return { type, size: sizeToken.replace(',', '.') };
+		};
+
+		const matchesPackagingQuery = (packagingRaw, query) => {
+			const parsed = parsePackagingQuery(query);
+			if (!parsed) return null;
+			const entries = String(packagingRaw || '')
+				.split('||')
+				.map((entry) => normalizeText(entry))
+				.filter(Boolean);
+			if (entries.length === 0) return false;
+			return entries.some((entry) => {
+				const tokens = entry.split(' ').filter(Boolean);
+				const hasType = tokens.includes(parsed.type);
+				const hasSize = tokens.some((token) => token.replace(',', '.') === parsed.size);
+				return hasType && hasSize;
+			});
+		};
+
 		const applyFilters = () => {
 			renderCategoryTagPills();
 			let visibleCount = 0;
@@ -678,7 +719,9 @@ const categoryTreeHtml = renderCategoryNodesHtml(categoryTree);
 					selectedTags.size === 0 ||
 					Array.from(selectedTags).every((tag) => tags.includes(tag));
 				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
-				const searchMatch = !activeSearchTerm || searchable.includes(activeSearchTerm);
+				const packagingRaw = card.getAttribute('data-packaging') || '';
+				const packagingMatch = matchesPackagingQuery(packagingRaw, activeSearchTerm);
+				const searchMatch = !activeSearchTerm || (packagingMatch === null ? searchable.includes(activeSearchTerm) : packagingMatch);
 
 				const match = categoryMatch && tagsMatch && searchMatch;
 				card.style.display = match ? '' : 'none';

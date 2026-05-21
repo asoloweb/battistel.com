@@ -31,6 +31,44 @@ type Page = {
 	featured_image?: string;
 };
 
+async function fetchAllNews() {
+	const url = directusItemsUrl('News');
+	url.searchParams.set(
+		'fields',
+		'id,status,titolo,sottotitolo,editor,video,immagine_copertina,date_created,link,label_link,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.filename_download'
+	);
+	url.searchParams.set('filter[status][_eq]', 'published');
+	url.searchParams.set('sort', '-date_created');
+	const response = await directusFetch(url);
+	const payload = await response.json();
+	return Array.isArray(payload?.data) ? (payload.data as NewsItem[]) : [];
+}
+
+async function fetchNewsHeaderImage() {
+	const pageUrl = directusItemsUrl('pages');
+	pageUrl.searchParams.set('fields', 'featured_image');
+	pageUrl.searchParams.set('filter[slug][_eq]', 'news');
+	const pageResponse = await directusFetch(pageUrl);
+	const pagePayload = await pageResponse.json();
+	const page = Array.isArray(pagePayload?.data) && pagePayload.data.length > 0 ? (pagePayload.data[0] as Page) : null;
+	return page?.featured_image || '';
+}
+
+function buildNewsSlugMap(newsItems: NewsItem[]) {
+	const usedSlugs = new Map<number, string>();
+	for (const item of newsItems) {
+		if (typeof item?.id !== 'number') continue;
+		const baseSlug = slugifyNewsTitle(item.titolo) || String(item.id);
+		let slug = baseSlug;
+		let counter = 1;
+		while ([...usedSlugs.values()].includes(slug)) {
+			slug = `${baseSlug}-${counter++}`;
+		}
+		usedSlugs.set(item.id, slug);
+	}
+	return usedSlugs;
+}
+
 function resolveImageSrc(value: string | undefined, options?: { width?: number; height?: number; quality?: number; format?: string }) {
 	if (!value) return '';
 	return directusAssetUrl(value, {
@@ -76,36 +114,9 @@ function getDocuments(item: NewsItem) {
 }
 
 export async function getStaticPaths() {
-	const url = directusItemsUrl('News');
-	url.searchParams.set(
-		'fields',
-		'id,status,titolo,sottotitolo,editor,video,immagine_copertina,date_created,link,label_link,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.filename_download'
-	);
-	url.searchParams.set('filter[status][_eq]', 'published');
-	url.searchParams.set('sort', '-date_created');
-	const response = await directusFetch(url);
-	const payload = await response.json();
-	const newsItems = Array.isArray(payload?.data) ? (payload.data as NewsItem[]) : [];
-
-	const pageUrl = directusItemsUrl('pages');
-	pageUrl.searchParams.set('fields', 'featured_image');
-	pageUrl.searchParams.set('filter[slug][_eq]', 'news');
-	const pageResponse = await directusFetch(pageUrl);
-	const pagePayload = await pageResponse.json();
-	const page = Array.isArray(pagePayload?.data) && pagePayload.data.length > 0 ? (pagePayload.data[0] as Page) : null;
-	const newsHeaderImage = page?.featured_image || '';
-
-	const usedSlugs = new Map<number, string>();
-	for (const item of newsItems) {
-		if (typeof item?.id !== 'number') continue;
-		const baseSlug = slugifyNewsTitle(item.titolo) || String(item.id);
-		let slug = baseSlug;
-		let counter = 1;
-		while ([...usedSlugs.values()].includes(slug)) {
-			slug = `${baseSlug}-${counter++}`;
-		}
-		usedSlugs.set(item.id, slug);
-	}
+	const newsItems = await fetchAllNews();
+	const newsHeaderImage = await fetchNewsHeaderImage();
+	const usedSlugs = buildNewsSlugMap(newsItems);
 
 	return newsItems
 		.filter((item) => typeof item?.id === 'number')
@@ -115,12 +126,25 @@ export async function getStaticPaths() {
 		}));
 }
 
-const { item, allSlugs, allNews, newsHeaderImage } = Astro.props as {
-	item: NewsItem;
-	allSlugs: Map<number, string>;
-	allNews: NewsItem[];
+const routeSlug = String(Astro.params.slug || '').trim();
+const propsData = Astro.props as {
+	item?: NewsItem;
+	allSlugs?: Map<number, string>;
+	allNews?: NewsItem[];
 	newsHeaderImage?: string;
 };
+const runtimeNews = !propsData?.item ? await fetchAllNews() : propsData.allNews || [];
+const allNews = propsData.allNews || runtimeNews;
+const allSlugs = propsData.allSlugs || buildNewsSlugMap(allNews);
+const item =
+	propsData.item ||
+	allNews.find((entry) => typeof entry.id === 'number' && allSlugs.get(entry.id) === routeSlug) ||
+	null;
+const newsHeaderImage = propsData.newsHeaderImage ?? (await fetchNewsHeaderImage());
+
+if (!item) {
+	return Astro.redirect('/news');
+}
 
 const slug = slugifyNewsTitle(item.titolo) || String(item.id);
 const coverImage = resolveImageSrc(item.immagine_copertina, { width: 1200, height: 800, quality: 85 });

@@ -51,6 +51,34 @@ async function fetchProdottiPage(): Promise<Page | null> {
 	}
 }
 
+async function fetchCategoryBySlug(categoriaSlug: string): Promise<{
+	categoriaSlug: string;
+	categoriaTitle: string;
+	categoriaDescription: string;
+	categoriaImage?: string;
+} | null> {
+	if (!categoriaSlug) return null;
+
+	const url = directusItemsUrl('Categorie');
+	url.searchParams.set('fields', 'id,titolo_categoria,descrizione_categoria,status,immagine_categoria');
+	url.searchParams.set('filter[status][_eq]', 'published');
+
+	const response = await directusFetch(url);
+	if (!response.ok) return null;
+
+	const payload = await response.json();
+	const categories = Array.isArray(payload?.data) ? (payload.data as Category[]) : [];
+	const match = categories.find((category) => slugifyLabel(category.titolo_categoria) === categoriaSlug);
+	if (!match) return null;
+
+	return {
+		categoriaSlug,
+		categoriaTitle: match.titolo_categoria || '',
+		categoriaDescription: match.descrizione_categoria || '',
+		categoriaImage: resolveAssetId(match.immagine_categoria),
+	};
+}
+
 export async function getStaticPaths() {
 	const url = directusItemsUrl('Categorie');
 	url.searchParams.set('fields', 'id,titolo_categoria,descrizione_categoria,status,immagine_categoria');
@@ -88,17 +116,21 @@ export async function getStaticPaths() {
 		} => Boolean(entry));
 }
 
-const {
-	categoriaSlug = '',
-	categoriaTitle = '',
-	categoriaDescription = '',
-	categoriaImage = '',
-	} = Astro.props as {
-		categoriaSlug?: string;
-		categoriaTitle?: string;
-		categoriaDescription?: string;
-		categoriaImage?: string;
-	};
+const routeCategorySlug = String(Astro.params.categoria || '').trim();
+const propsData = Astro.props as {
+	categoriaSlug?: string;
+	categoriaTitle?: string;
+	categoriaDescription?: string;
+	categoriaImage?: string;
+};
+const runtimeCategory =
+	!propsData?.categoriaSlug && routeCategorySlug
+		? await fetchCategoryBySlug(routeCategorySlug)
+		: null;
+const categoriaSlug = propsData?.categoriaSlug || runtimeCategory?.categoriaSlug || routeCategorySlug || '';
+const categoriaTitle = propsData?.categoriaTitle || runtimeCategory?.categoriaTitle || '';
+const categoriaDescription = propsData?.categoriaDescription || runtimeCategory?.categoriaDescription || '';
+const categoriaImage = propsData?.categoriaImage || runtimeCategory?.categoriaImage || '';
 const page = await fetchProdottiPage();
 const basePageTitle = page?.title || page?.Titolo || 'Prodotti';
 const pageTitle = categoriaTitle || basePageTitle;

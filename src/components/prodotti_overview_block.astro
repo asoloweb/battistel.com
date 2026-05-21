@@ -286,10 +286,11 @@ const productsData = products
 				quality: 72,
 				format: 'webp',
 			}),
+			packaging,
 			searchText: [title, ...searchableTags, ...packaging].join(' ').toLowerCase(),
 		};
 	})
-	.filter((entry): entry is { title: string; href: string; imageSrc: string; searchText: string } => Boolean(entry));
+	.filter((entry): entry is { title: string; href: string; imageSrc: string; packaging: string[]; searchText: string } => Boolean(entry));
 ---
 
 <section class="products_overview" data-aos="fade-up" data-aos-duration="1500">
@@ -335,7 +336,7 @@ const productsData = products
 				<h3 class="products_result_section_title">Prodotti</h3>
 				<div class="products_grid" data-products-overview-grid>
 					{productsData.map((entry) => (
-						<a class="products_card" href={entry.href} data-search={entry.searchText}>
+						<a class="products_card" href={entry.href} data-search={entry.searchText} data-packaging={entry.packaging.join('||').toLowerCase()}>
 							{entry.imageSrc && (
 								<div class="products_card_media">
 									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
@@ -405,6 +406,36 @@ const productsData = products
 			return queryTokens.every((token) => normalizedSearchable.includes(token));
 		};
 
+		const packagingTypes = new Set(['tanica', 'fusto', 'secchio', 'barile', 'cisterna', 'flacone', 'bottiglia', 'lattina', 'sacco', 'cartuccia', 'latta']);
+
+		const parsePackagingQuery = (query) => {
+			const normalized = normalizeText(query);
+			if (!normalized) return null;
+			const tokens = normalized.split(' ').filter(Boolean);
+			if (tokens.length < 2) return null;
+			const type = tokens[0];
+			if (!packagingTypes.has(type)) return null;
+			const sizeToken = tokens.find((token) => /^\d+(?:[.,]\d+)?$/.test(token));
+			if (!sizeToken) return null;
+			return { type, size: sizeToken.replace(',', '.') };
+		};
+
+		const matchesPackagingQuery = (packagingRaw, query) => {
+			const parsed = parsePackagingQuery(query);
+			if (!parsed) return null;
+			const entries = String(packagingRaw || '')
+				.split('||')
+				.map((entry) => normalizeText(entry))
+				.filter(Boolean);
+			if (entries.length === 0) return false;
+			return entries.some((entry) => {
+				const tokens = entry.split(' ').filter(Boolean);
+				const hasType = tokens.includes(parsed.type);
+				const hasSize = tokens.some((token) => token.replace(',', '.') === parsed.size);
+				return hasType && hasSize;
+			});
+		};
+
 		if (searchInput instanceof HTMLInputElement) {
 			searchInput.value = querySearchTermRaw.trim();
 		}
@@ -415,7 +446,9 @@ const productsData = products
 
 			productCards.forEach((card) => {
 				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
-				const match = matchesSearch(searchable, activeSearchTerm);
+				const packagingRaw = card.getAttribute('data-packaging') || '';
+				const packagingMatch = matchesPackagingQuery(packagingRaw, activeSearchTerm);
+				const match = packagingMatch === null ? matchesSearch(searchable, activeSearchTerm) : packagingMatch;
 				card.style.display = match ? '' : 'none';
 				if (match) visibleProductCount += 1;
 			});

@@ -7,6 +7,7 @@ import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
 type Lavoro = {
     id: string;
     titolo: string;
+    descrizione_breve?: string | null;
     descrizione?: string | null;
     data?: string | null;
     status: string;
@@ -58,7 +59,7 @@ const showPageHeader = page ? !page.hide_page_header : false;
 async function fetchLavori(): Promise<Lavoro[]> {
     try {
         const url = directusItemsUrl('Lavori');
-        url.searchParams.set('fields', 'id,titolo,descrizione,data,status');
+        url.searchParams.set('fields', 'id,titolo,descrizione_breve,descrizione,data,status');
         url.searchParams.set('limit', '-1');
 
         const response = await directusFetch(url);
@@ -105,15 +106,19 @@ const lavori: Lavoro[] = await fetchLavori();
 				<div class="lavori_hero">
 					<div class="lavori_hero_content">
 						{lavori.map((lavoro) => (
-							<div class="lavoro_card">
-								<div class="lavoro_card_header">
-									<h3>{lavoro.titolo}</h3>
-									{lavoro.data && (
-										<span class="lavoro_card_data">{new Date(lavoro.data).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-									)}
-								</div>
+							<details class="lavoro_card">
+								<summary class="lavoro_card_summary">
+									<div class="lavoro_card_header">
+										<h3>{lavoro.titolo}</h3>
+										{lavoro.data && (
+											<span class="lavoro_card_data">{new Date(lavoro.data).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+										)}
+									</div>
+									{lavoro.descrizione_breve && <div class="lavoro_card_excerpt" set:html={lavoro.descrizione_breve}></div>}
+									<span class="lavoro_card_hint">Scopri i dettagli</span>
+								</summary>
 								{lavoro.descrizione && <div class="lavoro_card_desc" set:html={lavoro.descrizione}></div>}
-							</div>
+							</details>
 						))}
 					</div>
 				</div>
@@ -171,6 +176,44 @@ const lavori: Lavoro[] = await fetchLavori();
 		transition: transform 200ms ease, box-shadow 200ms ease;
 	}
 
+	.lavoro_card_summary {
+		list-style: none;
+		cursor: pointer;
+		display: block;
+	}
+
+	.lavoro_card_summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.lavoro_card_summary::marker {
+		content: '';
+	}
+
+	.lavoro_card_hint {
+		display: inline-block;
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: var(--arancione-battistel);
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+
+	.lavoro_card_excerpt {
+		font-size: 0.95rem;
+		line-height: 1.5;
+		color: var(--text-color-secondary);
+		margin: 0 0 8px;
+	}
+
+	.lavoro_card_excerpt :global(p) {
+		margin: 0;
+	}
+
+	.lavoro_card[open] .lavoro_card_hint {
+		margin-bottom: 12px;
+	}
+
 	.lavoro_card:last-child {
 		margin-bottom: 0;
 	}
@@ -209,6 +252,7 @@ const lavori: Lavoro[] = await fetchLavori();
 		font-size: 0.95rem;
 		line-height: 1.6;
 		color: var(--text-color);
+		margin-top: 8px;
 	}
 
 	.lavoro_card_desc :global(p) {
