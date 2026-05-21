@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "battistel-admin": {
+      "type": "remote",
+      "url": "https://admin.battistel.com/mcp",
+      "headers": {
+        "Authorization": "Bearer H7Axev0OLWXAVArO-hEz0RNSLq6V45SK"
+      }
+    }
+  }
+}
