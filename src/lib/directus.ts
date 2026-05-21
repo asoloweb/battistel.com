@@ -5,7 +5,9 @@ const rawDirectusUrl =
 	import.meta.env.DIRECTUS_URL ||
 	'https://admin.battistel.com';
 
-export const DIRECTUS_URL = rawDirectusUrl.replace(/\/+$/, '');
+const normalizedDirectusUrl = rawDirectusUrl.replace('battistel.prometeo.com', 'admin.battistel.com');
+
+export const DIRECTUS_URL = normalizedDirectusUrl.replace(/\/+$/, '');
 const shouldRejectUnauthorized =
 	(
 		import.meta.env.DIRECTUS_TLS_REJECT_UNAUTHORIZED ||
