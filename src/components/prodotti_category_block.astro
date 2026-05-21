@@ -56,7 +56,16 @@ interface Props {
 
 const { titolo = 'Prodotti', filterCategorySlug, selectedCategoryLabel } = Astro.props as Props;
 const searchQueryRaw = (Astro.url.searchParams.get('q') || '').trim();
-const searchQuery = searchQueryRaw.toLowerCase();
+const normalizeForSearch = (value: unknown) =>
+	String(value || '')
+		.toLowerCase()
+		.normalize('NFD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.replace(/[^a-z0-9\s-]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+const searchQuery = normalizeForSearch(searchQueryRaw);
+const normalizedFilterCategorySlug = normalizeFilterToken(filterCategorySlug);
 
 function resolveImageSrc(value: string | undefined) {
 	return directusAssetUrl(value, {
@@ -137,7 +146,7 @@ async function fetchProducts(): Promise<Product[]> {
 		const url = directusItemsUrl('Prodotti');
 		url.searchParams.set(
 			'fields',
-			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag,Tag.Tags_id.nascosto'
+			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag,Tag.Tags_id.nascosto,descrizione_breve,descrizione_estesa'
 		);
 		url.searchParams.set('filter[status][_eq]', 'published');
 		url.searchParams.set('limit', '-1');
@@ -166,6 +175,19 @@ function extractProductTags(product: Product) {
 		.filter((entry): entry is { slug: string; label: string } => Boolean(entry));
 
 	return Array.from(new Map(tags.map((entry) => [entry.slug, entry.label])), ([slug, label]) => ({ slug, label }));
+}
+
+function extractSearchTagLabels(product: Product) {
+	if (!Array.isArray(product?.Tag)) return [];
+	const labels = product.Tag
+		.map((entry) => {
+			const related = entry?.Tags_id && typeof entry.Tags_id === 'object' ? entry.Tags_id : null;
+			const label = related?.titolo_tag?.trim() || '';
+			return label || null;
+		})
+		.filter((entry): entry is string => Boolean(entry));
+
+	return Array.from(new Set(labels));
 }
 
 function getProductCategories(product: Product) {
@@ -217,7 +239,8 @@ for (const node of categoryTreeMap.values()) {
 	if (node.parentToken) parentByCategory.set(node.token, node.parentToken);
 }
 
-const selectedCategoryNode = Array.from(categoryTreeMap.values()).find((node) => node.slug === filterCategorySlug) || null;
+const selectedCategoryNode =
+	Array.from(categoryTreeMap.values()).find((node) => normalizeFilterToken(node.slug) === normalizedFilterCategorySlug) || null;
 const breadcrumbCategoryItems = [] as { name: string; href?: string }[];
 
 if (selectedCategoryNode) {
@@ -272,7 +295,9 @@ function collectDescendantSlugs(token: string, treeMap: typeof categoryTreeMap):
 
 // Calcola tutti gli slug validi per la categoria corrente (se stessa + tutte le discendenti)
 const validCategorySlugs: Set<string> = selectedCategoryNode
-	? new Set([filterCategorySlug, ...collectDescendantSlugs(selectedCategoryNode.token, categoryTreeMap)])
+	? new Set([normalizedFilterCategorySlug, ...collectDescendantSlugs(selectedCategoryNode.token, categoryTreeMap)])
+	: normalizedFilterCategorySlug
+	? new Set([normalizedFilterCategorySlug])
 	: new Set();
 
 const productsData = products
@@ -302,6 +327,7 @@ const productsData = products
 		}
 
 		const tags = extractProductTags(product);
+		const searchTagLabels = extractSearchTagLabels(product);
 
 		return {
 			title: getProductTitle(product) || 'Prodotto',
@@ -315,14 +341,15 @@ const productsData = products
 			}),
 			categorySlugs: Array.from(categorySlugs),
 			tags,
-			searchText: [
+			searchText: normalizeForSearch([
 				getProductTitle(product) || 'Prodotto',
 				String(product.codice_prodotto || '').trim(),
+				String(product.descrizione_breve || '').trim(),
+				String(product.descrizione_estesa || '').trim(),
+				String(product.descrizione || '').trim(),
 				...Array.from(categorySearchTokens),
-				...tags.map((tag) => tag.label),
-			]
-				.join(' ')
-				.toLowerCase(),
+				...searchTagLabels,
+			].join(' ')),
 		};
 	})
 	.filter((entry): entry is { title: string; href: string; imageSrc: string; categorySlugs: string[]; tags: { slug: string; label: string }[]; searchText: string } => Boolean(entry))
@@ -332,13 +359,11 @@ const productsData = products
 const subcategorySearchMap = new Map<string, string>();
 for (const card of subcategoryCards) {
 	const productsForCard = productsData.filter((entry) => entry.categorySlugs.includes(card.slug));
-	const searchText = [
+	const searchText = normalizeForSearch([
 		card.title,
 		card.description,
 		...productsForCard.map((entry) => entry.searchText),
-	]
-		.join(' ')
-		.toLowerCase();
+	].join(' '));
 	subcategorySearchMap.set(card.slug, searchText);
 }
 
@@ -356,8 +381,8 @@ const searchedSubcategoryCards = hasSearchQuery
 const searchedProductsData = hasSearchQuery
 	? productsData.filter((entry) => entry.searchText.includes(searchQuery))
 	: productsData;
-const showGroupedSearchResults = hasSubcategories && hasSearchQuery;
-const displayedProductsData = hasSearchQuery ? searchedProductsData : productsData;
+const displayedSubcategoryCards = hasSearchQuery ? searchedSubcategoryCards : subcategoryCards;
+const displayedProductsData = hasSubcategories ? [] : hasSearchQuery ? searchedProductsData : productsData;
 ---
 
 	<section class="products_block" data-aos="fade-up" data-aos-duration="1500">
@@ -383,16 +408,20 @@ const displayedProductsData = hasSearchQuery ? searchedProductsData : productsDa
 			)}
 		</div>
 
-		{hasSubcategories && !hasSearchQuery ? (
+		{hasSubcategories ? (
 			<>
-				<div class="products_results_head" data-subcategories-results-head hidden>
-					<p class="products_results_count" data-subcategories-results-count></p>
-				</div>
+				{hasSearchQuery && (
+					<div class="products_results_head">
+						<p class="products_results_count" data-results-count>
+							{displayedSubcategoryCards.length} categorie
+						</p>
+					</div>
+				)}
 				<div class="products_result_section" data-subcategories-categories-section>
-					<h3 class="products_result_section_title" data-subcategories-categories-title hidden>Categorie</h3>
+					<h3 class="products_result_section_title">Categorie</h3>
 					<div class="products_subcategories_grid">
-					{subcategoryCards.map((entry) => (
-						<a class="products_subcategory_card" href={entry.href} data-search-category={[entry.title, entry.description].join(' ').toLowerCase()} data-subcategory-card>
+					{displayedSubcategoryCards.map((entry) => (
+						<a class="products_subcategory_card" href={entry.href}>
 							{entry.imageSrc && (
 								<div class="products_subcategory_media">
 									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
@@ -404,78 +433,17 @@ const displayedProductsData = hasSearchQuery ? searchedProductsData : productsDa
 					))}
 					</div>
 				</div>
-
-				<div class="products_result_section" data-subcategories-products-section hidden>
-					<h3 class="products_result_section_title">Prodotti</h3>
-					<div class="products_grid">
-						{productsData.map((entry) => (
-							<a class="products_card" href={entry.href} data-tags={entry.tags.map((tag) => tag.slug).join(',')} data-search={entry.searchText} data-subcategory-product-card>
-								{entry.imageSrc && (
-									<div class="products_card_media">
-										<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
-									</div>
-								)}
-								<h3 class="products_card_title">{entry.title}</h3>
-							</a>
-						))}
-					</div>
-				</div>
-				<p class="products_empty_static products_empty_subcategories" data-subcategories-empty></p>
-			</>
-		) : showGroupedSearchResults ? (
-			<>
-				<div class="products_results_head">
-					<p class="products_results_count" data-results-count>
-						{searchedSubcategoryCards.length + searchedProductsData.length} risultati ({searchedSubcategoryCards.length} categorie, {searchedProductsData.length} prodotti)
+				{displayedSubcategoryCards.length === 0 && (
+					<p class="products_empty_static products_empty_subcategories">
+						Nessuna sottocategoria trovata con la ricerca inserita.
 					</p>
-				</div>
-
-				{searchedSubcategoryCards.length > 0 && (
-					<div class="products_result_section">
-						<h3 class="products_result_section_title">Categorie</h3>
-						<div class="products_subcategories_grid">
-							{searchedSubcategoryCards.map((entry) => (
-								<a class="products_subcategory_card" href={entry.href} data-search={subcategorySearchMap.get(entry.slug) || entry.title.toLowerCase()}>
-									{entry.imageSrc && (
-										<div class="products_subcategory_media">
-											<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
-										</div>
-									)}
-									<h3 class="products_subcategory_title">{entry.title}</h3>
-									{entry.description && <p class="products_subcategory_description">{entry.description}</p>}
-								</a>
-							))}
-						</div>
-					</div>
-				)}
-
-				{searchedProductsData.length > 0 && (
-					<div class="products_result_section">
-						<h3 class="products_result_section_title">Prodotti</h3>
-						<div class="products_grid">
-							{searchedProductsData.map((entry) => (
-								<a class="products_card" href={entry.href} data-tags={entry.tags.map((tag) => tag.slug).join(',')} data-search={entry.searchText}>
-									{entry.imageSrc && (
-										<div class="products_card_media">
-											<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
-										</div>
-									)}
-									<h3 class="products_card_title">{entry.title}</h3>
-								</a>
-							))}
-						</div>
-					</div>
-				)}
-
-				{searchedSubcategoryCards.length === 0 && searchedProductsData.length === 0 && (
-					<p class="products_empty_static">Nessun risultato trovato in questa categoria.</p>
 				)}
 			</>
 		) : displayedProductsData.length > 0 ? (
 			<>
 				<div class="products_results_head">
 					<p class="products_results_count" data-results-count>{displayedProductsData.length} prodotti</p>
-					{!showGroupedSearchResults && <button class="products_clear_filters" type="button" data-clear-filters>Reset filtri</button>}
+					<button class="products_clear_filters" type="button" data-clear-filters>Reset filtri</button>
 				</div>
 
 				<div class="products_grid">
@@ -495,9 +463,7 @@ const displayedProductsData = hasSearchQuery ? searchedProductsData : productsDa
 			</>
 		) : (
 			<p class="products_empty_static">
-				{showGroupedSearchResults
-					? 'Nessun prodotto trovato in questa categoria con la ricerca inserita.'
-					: 'Nessun prodotto disponibile in questa categoria.'}
+				Nessun prodotto disponibile in questa categoria.
 			</p>
 		)}
 	</div>
@@ -664,68 +630,6 @@ const displayedProductsData = hasSearchQuery ? searchedProductsData : productsDa
 		}
 
 		applyFilters();
-	})();
-</script>}
-
-{hasSubcategories && <script is:inline>
-	(() => {
-		const categoryCards = Array.from(document.querySelectorAll('[data-subcategory-card]'));
-		const productCards = Array.from(document.querySelectorAll('[data-subcategory-product-card]'));
-		if (categoryCards.length === 0) return;
-		const emptyElement = document.querySelector('[data-subcategories-empty]');
-		const headElement = document.querySelector('[data-subcategories-results-head]');
-		const countElement = document.querySelector('[data-subcategories-results-count]');
-		const categoriesTitleElement = document.querySelector('[data-subcategories-categories-title]');
-		const categoriesSectionElement = document.querySelector('[data-subcategories-categories-section]');
-		const productsSectionElement = document.querySelector('[data-subcategories-products-section]');
-
-		const normalizeText = (value) =>
-			String(value || '')
-				.toLowerCase()
-				.normalize('NFD')
-				.replace(/[\u0300-\u036f]/g, '')
-				.replace(/[^a-z0-9\s-]/g, ' ')
-				.replace(/\s+/g, ' ')
-				.trim();
-
-		const queryRaw = new URLSearchParams(window.location.search).get('q') || '';
-		const query = normalizeText(queryRaw);
-		if (!query) return;
-
-		let visibleCategoryCount = 0;
-		categoryCards.forEach((card) => {
-			const searchable = normalizeText(card.getAttribute('data-search-category') || '');
-			const match = searchable.includes(query);
-			card.style.display = match ? '' : 'none';
-			if (match) visibleCategoryCount += 1;
-		});
-
-		let visibleProductCount = 0;
-		productCards.forEach((card) => {
-			const searchable = normalizeText(card.getAttribute('data-search') || '');
-			const match = searchable.includes(query);
-			card.style.display = match ? '' : 'none';
-			if (match) visibleProductCount += 1;
-		});
-
-		const visibleCount = visibleCategoryCount + visibleProductCount;
-
-		if (headElement instanceof HTMLElement) headElement.hidden = false;
-		if (countElement instanceof HTMLElement) {
-			countElement.textContent = `${visibleCount} risultati (${visibleCategoryCount} categorie, ${visibleProductCount} prodotti)`;
-		}
-		if (categoriesTitleElement instanceof HTMLElement) {
-			categoriesTitleElement.hidden = visibleCategoryCount === 0;
-		}
-		if (categoriesSectionElement instanceof HTMLElement) {
-			categoriesSectionElement.hidden = visibleCategoryCount === 0;
-		}
-		if (productsSectionElement instanceof HTMLElement) {
-			productsSectionElement.hidden = visibleProductCount === 0;
-		}
-		if (emptyElement instanceof HTMLElement) {
-			emptyElement.textContent = visibleCount > 0 ? '' : 'Nessun risultato trovato in questa categoria.';
-		}
 	})();
 </script>}
 
