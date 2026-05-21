@@ -1,5 +1,3 @@
-import { Agent } from 'undici';
-
 const rawDirectusUrl =
 	import.meta.env.PUBLIC_DIRECTUS_URL ||
 	import.meta.env.DIRECTUS_URL ||
@@ -8,19 +6,6 @@ const rawDirectusUrl =
 const normalizedDirectusUrl = rawDirectusUrl.replace('battistel.prometeo.com', 'admin.battistel.com');
 
 export const DIRECTUS_URL = normalizedDirectusUrl.replace(/\/+$/, '');
-const shouldRejectUnauthorized =
-	(
-		import.meta.env.DIRECTUS_TLS_REJECT_UNAUTHORIZED ||
-		(DIRECTUS_URL.includes('admin.battistel.com') ? 'false' : 'true')
-	) !== 'false';
-const directusDispatcher =
-	DIRECTUS_URL.startsWith('https://') && !shouldRejectUnauthorized
-		? new Agent({
-				connect: {
-					rejectUnauthorized: false,
-				},
-			})
-		: undefined;
 
 export function directusItemsUrl(path: string) {
 	const cleanedPath = path.replace(/^\/+/, '');
@@ -28,14 +13,7 @@ export function directusItemsUrl(path: string) {
 }
 
 export function directusFetch(input: URL | string, init: RequestInit = {}) {
-	if (!directusDispatcher) {
-		return fetch(input, init);
-	}
-
-	return fetch(input, {
-		...init,
-		dispatcher: directusDispatcher,
-	} as RequestInit & { dispatcher: Agent });
+	return fetch(input, init);
 }
 
 type DirectusAssetOptions = {
