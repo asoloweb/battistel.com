@@ -54,6 +54,7 @@ type TagRelation = {
 type ProductDocument = {
 	id?: string;
 	title?: string | null;
+	description?: string | null;
 	filename_download?: string | null;
 	type?: string | null;
 };
@@ -117,7 +118,7 @@ async function fetchProductsPage(): Promise<ProductsPage | null> {
 async function fetchProducts(): Promise<Product[]> {
 	try {
 		const url = directusItemsUrl('Prodotti');
-		url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Categoria_correlata.Categorie_id.*,Tag.Tags_id.*,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.filename_download,documenti.directus_files_id.type');
+		url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Categoria_correlata.Categorie_id.*,Tag.Tags_id.*,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.description,documenti.directus_files_id.filename_download,documenti.directus_files_id.type');
 		url.searchParams.set('filter[status][_eq]', 'published');
 		url.searchParams.set('limit', '-1');
 		url.searchParams.set('sort', 'sort,codice_prodotto');
@@ -272,7 +273,7 @@ function getDocuments(product: Product) {
 				: null;
 			const id = file?.id?.trim() || '';
 			if (!id) return null;
-			const label = file?.title?.trim() || file?.filename_download?.trim() || 'Documento';
+			const label = file?.description?.trim() || file?.title?.trim() || file?.filename_download?.trim() || 'Documento';
 			return {
 				id,
 				label,
@@ -305,7 +306,7 @@ function formatPrice(value: number | string | undefined) {
 
 export async function getStaticPaths() {
 	const url = directusItemsUrl('Prodotti');
-	url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Categoria_correlata.Categorie_id.*,varianti_prodotto.Varianti_id.*,Tag.Tags_id.*,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.filename_download,documenti.directus_files_id.type');
+	url.searchParams.set('fields', '*,Categoria.Categorie_id.*,Categoria_correlata.Categorie_id.*,varianti_prodotto.Varianti_id.*,Tag.Tags_id.*,documenti.directus_files_id.id,documenti.directus_files_id.title,documenti.directus_files_id.description,documenti.directus_files_id.filename_download,documenti.directus_files_id.type');
 	url.searchParams.set('filter[status][_eq]', 'published');
 	url.searchParams.set('limit', '-1');
 	const response = await directusFetch(url);
