@@ -41,7 +41,11 @@ function formatNewsDate(value: string | undefined) {
 }
 
 type Page = {
-    featured_image?: string;
+	title?: string;
+	description?: string;
+	seo_title?: string;
+	seo_desc?: string;
+	featured_image?: string;
 };
 
 const newsUrl = directusItemsUrl('News');
@@ -56,7 +60,7 @@ const newsPayload = await newsResponse.json();
 const allNews = Array.isArray(newsPayload?.data) ? (newsPayload.data as NewsItem[]) : [];
 
 const pageUrl = directusItemsUrl('pages');
-pageUrl.searchParams.set('fields', 'featured_image');
+pageUrl.searchParams.set('fields', 'title,description,seo_title,seo_desc,featured_image');
 pageUrl.searchParams.set('filter[slug][_eq]', 'news');
 const pageResponse = await directusFetch(pageUrl);
 const pagePayload = await pageResponse.json();
@@ -78,15 +82,18 @@ const defaultHeaderImage = 'https://admin.battistel.com/assets/fc2a2b77-bff1-478
 const headerImage = page?.featured_image
 	? resolveImageSrc(page.featured_image, { width: 1920, height: 1080, quality: 80, format: 'webp' })
 	: defaultHeaderImage;
+const pageTitle = page?.title || 'News';
+const pageDescription = page?.description || 'Aggiornamenti, novita e approfondimenti dal mondo Battistel.';
+const seoDescription = page?.seo_desc || pageDescription;
 ---
 
-<BaseLayout title="News" seoDescription="Scopri aggiornamenti, novita e approfondimenti dal mondo Battistel.">
+<BaseLayout title={pageTitle} seoTitle={page?.seo_title} seoDescription={seoDescription}>
 	{headerImage && (
 		<div class="page_header" style={`background-image: url('${headerImage}')`}>
 			<div class="page_header_inner">
-				<h1 data-aos="fade-up" data-aos-duration="1500">News</h1>
+				<h1 data-aos="fade-up" data-aos-duration="1500">{pageTitle}</h1>
 				<p class="page_header_description" data-aos="fade-up" data-aos-duration="1500" data-aos-delay="120">
-					Aggiornamenti, novita e approfondimenti dal mondo Battistel.
+					{pageDescription}
 				</p>
 			</div>
 		</div>
@@ -94,9 +101,9 @@ const headerImage = page?.featured_image
 	{!headerImage && (
 		<div class="page_header">
 			<div class="page_header_inner">
-				<h1 data-aos="fade-up" data-aos-duration="1500">News</h1>
+				<h1 data-aos="fade-up" data-aos-duration="1500">{pageTitle}</h1>
 				<p class="page_header_description" data-aos="fade-up" data-aos-duration="1500" data-aos-delay="120">
-					Aggiornamenti, novita e approfondimenti dal mondo Battistel.
+					{pageDescription}
 				</p>
 			</div>
 		</div>

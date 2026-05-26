@@ -94,6 +94,14 @@ function formatNewsDate(value: string | undefined) {
 	return parts.join(' ');
 }
 
+function resolveVideoSrc(value: string | undefined) {
+	if (!value) return '';
+	const trimmed = value.trim();
+	if (!trimmed) return '';
+	if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+	return `${DIRECTUS_URL}/assets/${trimmed}`;
+}
+
 function getDocuments(item: NewsItem) {
 	if (!Array.isArray(item?.documenti)) return [];
 	const documents = item.documenti
@@ -153,6 +161,7 @@ const defaultHeaderImage = 'https://admin.battistel.com/assets/fc2a2b77-bff1-478
 const headerImage = newsHeaderImage
 	? resolveImageSrc(newsHeaderImage, { width: 1920, height: 1080, quality: 80, format: 'webp' })
 	: defaultHeaderImage;
+const videoSrc = resolveVideoSrc(item.video);
 const documents = getDocuments(item);
 ---
 
@@ -170,6 +179,14 @@ const documents = getDocuments(item);
 			{item.titolo && <h1 class="news_single_title">{item.titolo}</h1>}
 			{item.sottotitolo && <p class="news_single_subtitle">{item.sottotitolo}</p>}
 			{item.editor && <div class="news_single_text" set:html={item.editor}></div>}
+			{videoSrc && (
+				<div class="news_single_video">
+					<video controls preload="metadata" playsinline>
+						<source src={videoSrc} />
+						Il tuo browser non supporta il tag video.
+					</video>
+				</div>
+			)}
 			{coverImage && (
 				<div class="news_single_media">
 					<img src={coverImage} alt={item.titolo || ''} loading="eager" />
@@ -284,6 +301,17 @@ const documents = getDocuments(item);
 	}
 	.news_single_text :global(p) {
 		margin: 0 0 14px;
+	}
+	.news_single_video {
+		margin: 0 0 30px;
+		border-radius: 22px;
+		overflow: hidden;
+		background: #000;
+	}
+	.news_single_video video {
+		width: 100%;
+		height: auto;
+		display: block;
 	}
 	.news_single_media {
 		margin: 0 0 30px;
