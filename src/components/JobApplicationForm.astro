@@ -100,6 +100,12 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 			}
 
 			try {
+				const sanitizeForWebhookTemplate = (value) =>
+					String(value || '')
+						.replace(/\\/g, '\\\\')
+						.replace(/"/g, '\\"')
+						.replace(/\r?\n/g, '\\n');
+
 				const formData = new FormData(form);
 				const nomeCognome = String(formData.get('nome_cognome') || '').trim();
 				const email = String(formData.get('email') || '').trim();
@@ -150,6 +156,7 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					form_type: 'lavoro',
 					tipo_richiesta: 'lavoro',
 					contatto,
+					contatto_email: sanitizeForWebhookTemplate(contatto),
 					nome_cognome: nomeCognome,
 					email,
 					telefono,
@@ -178,8 +185,19 @@ const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
 					body: JSON.stringify(requestBody),
 				});
 
-				if (!response.ok) {
-					throw new Error(`Webhook error: ${response.status}`);
+				const responseBody = await response.text();
+				let responseJson = null;
+				try {
+					responseJson = responseBody ? JSON.parse(responseBody) : null;
+				} catch {
+					responseJson = null;
+				}
+
+				const flowStatus = responseJson && typeof responseJson === 'object' ? responseJson.status : null;
+				const flowCode = responseJson && typeof responseJson === 'object' ? responseJson.code : '';
+
+				if (!response.ok || (typeof flowStatus === 'number' && flowStatus >= 400) || (typeof flowCode === 'string' && flowCode)) {
+					throw new Error(`Webhook error: ${response.status} ${flowCode || responseBody}`);
 				}
 
 				const umami = window.umami;

@@ -180,6 +180,12 @@ try {
 			}
 
 			try {
+				const sanitizeForWebhookTemplate = (value) =>
+					String(value || '')
+						.replace(/\\/g, '\\\\')
+						.replace(/"/g, '\\"')
+						.replace(/\r?\n/g, '\\n');
+
 				const formData = new FormData(form);
 				const contatto = [
 					'Tipo richiesta: preventivo',
@@ -202,6 +208,8 @@ try {
 					product_title: String(formData.get('product_title') || '').trim(),
 					messaggio: String(formData.get('messaggio') || '').trim(),
 					contatto,
+					contatto_email: sanitizeForWebhookTemplate(contatto),
+					cv_file: null,
 				};
 
 				const response = await fetch(webhookUrl, {
@@ -215,7 +223,20 @@ try {
 					}),
 				});
 
-				if (!response.ok) throw new Error(`Webhook error: ${response.status}`);
+				const responseBody = await response.text();
+				let responseJson = null;
+				try {
+					responseJson = responseBody ? JSON.parse(responseBody) : null;
+				} catch {
+					responseJson = null;
+				}
+
+				const flowStatus = responseJson && typeof responseJson === 'object' ? responseJson.status : null;
+				const flowCode = responseJson && typeof responseJson === 'object' ? responseJson.code : '';
+
+				if (!response.ok || (typeof flowStatus === 'number' && flowStatus >= 400) || (typeof flowCode === 'string' && flowCode)) {
+					throw new Error(`Webhook error: ${response.status} ${flowCode || responseBody}`);
+				}
 
 				const umami = window.umami;
 				if (umami && typeof umami.track === 'function') {
