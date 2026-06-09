@@ -10,6 +10,7 @@ interface Props {
 	label?: string;
 	immagine?: string;
 	immagine_2?: string;
+	video?: string;
 	inverti?: boolean;
 	background_color?: string;
 }
@@ -23,6 +24,7 @@ const {
 	label = '', 
 	immagine = '',
 	immagine_2 = '',
+	video = '',
 	inverti = false,
 	background_color = ''
 } = Astro.props;
@@ -37,6 +39,10 @@ function resolveImageSrc(value: string) {
 		quality: 74,
 		format: 'webp',
 	});
+}
+
+function resolveVideoSrc(value: string) {
+	return directusAssetUrl(value);
 }
 ---
 
@@ -80,6 +86,14 @@ function resolveImageSrc(value: string) {
 	<div class="colonna colonna_testo">
 		{titolo && <div class="title">{titolo}</div>}
 		{sottotitolo && <h3>{sottotitolo}</h3>}
+		{video && (
+			<div class="hero_video">
+				<video controls preload="metadata" playsinline style="width: 100%;">
+					<source src={resolveVideoSrc(video)} />
+					Il tuo browser non supporta il tag video.
+				</video>
+			</div>
+		)}
 		{paragrafo && <div class="hero_text" set:html={paragrafo} />}
 		{label && href && (
 			<a class="MainButton" href={href}>
@@ -235,6 +249,23 @@ function resolveImageSrc(value: string) {
 		line-height: 24px;
 		font-size: 19px;
 	}
+
+	.hero_video {
+		width: 100%;
+		max-width: 100%;
+		margin: 0 0 24px;
+		border-radius: 18px;
+		overflow: hidden;
+		background: #000;
+	}
+
+	.hero_video video {
+		display: block;
+		width: 100%;
+		max-width: 100%;
+		height: auto;
+	}
+
 	.hero_image {
 		position: absolute;
 		width: 80%;

@@ -67,6 +67,12 @@ a {
   text-decoration: none;
 }
 
+p a {
+  color: var(--arancione-battistel);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .site-header {
     color: var(--bianco);
     display: flex;

@@ -18,6 +18,7 @@ type HeroBlockItem = {
 	href?: string;
 	immagine?: string;
 	immagine_2?: string;
+	video?: string;
 	inverti?: boolean;
 	background_color?: string;
 };
@@ -273,6 +274,7 @@ function getBlockItemId(block: EditorEntry) {
 							label={hero.label}
 							immagine={hero.immagine}
 							immagine_2={hero.immagine_2}
+							video={hero.video}
 							inverti={hero.inverti}
 							background_color={hero.background_color}
 						/>
