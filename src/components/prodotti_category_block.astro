@@ -308,9 +308,11 @@ const productsData = products
 		const directCategories = getProductCategories(product);
 		const categorySlugs = new Set<string>();
 		const categorySearchTokens = new Set<string>();
+		const categoryPathLabels: string[] = [];
 
 		for (const category of directCategories) {
 			let currentToken: string | undefined = category.token;
+			const chainLabels = [category.label];
 			categorySlugs.add(category.slug);
 			categorySearchTokens.add(category.label);
 			categorySearchTokens.add(category.slug.replace(/-/g, ' '));
@@ -322,8 +324,10 @@ const productsData = products
 				categorySlugs.add(parentNode.slug);
 				categorySearchTokens.add(parentNode.title);
 				categorySearchTokens.add(parentNode.slug.replace(/-/g, ' '));
+				chainLabels.unshift(parentNode.title);
 				currentToken = parentToken;
 			}
+			categoryPathLabels.push(chainLabels.join(' / '));
 		}
 
 		const tags = extractProductTags(product);
@@ -340,6 +344,7 @@ const productsData = products
 				format: 'webp',
 			}),
 			categorySlugs: Array.from(categorySlugs),
+			categoryPathLabel: Array.from(new Set(categoryPathLabels)).join(', '),
 			tags,
 			searchText: normalizeForSearch([
 				getProductTitle(product) || 'Prodotto',
@@ -352,7 +357,7 @@ const productsData = products
 			].join(' ')),
 		};
 	})
-	.filter((entry): entry is { title: string; href: string; imageSrc: string; categorySlugs: string[]; tags: { slug: string; label: string }[]; searchText: string } => Boolean(entry))
+	.filter((entry): entry is { title: string; href: string; imageSrc: string; categorySlugs: string[]; categoryPathLabel: string; tags: { slug: string; label: string }[]; searchText: string } => Boolean(entry))
 	// Filtra per categoria corrente + tutte le sue discendenti
 	.filter((entry) => entry.categorySlugs.some((s) => validCategorySlugs.has(s)));
 
@@ -382,7 +387,10 @@ const searchedProductsData = hasSearchQuery
 	? productsData.filter((entry) => entry.searchText.includes(searchQuery))
 	: productsData;
 const displayedSubcategoryCards = hasSearchQuery ? searchedSubcategoryCards : subcategoryCards;
-const displayedProductsData = hasSubcategories ? [] : hasSearchQuery ? searchedProductsData : productsData;
+const displayedProductsData = hasSearchQuery ? searchedProductsData : hasSubcategories ? [] : productsData;
+const displayedCategoryCountLabel = `${displayedSubcategoryCards.length} ${displayedSubcategoryCards.length === 1 ? 'categoria' : 'categorie'}`;
+const displayedProductCountLabel = `${displayedProductsData.length} ${displayedProductsData.length === 1 ? 'prodotto' : 'prodotti'}`;
+const searchProductsTitle = `Prodotti trovati nella categoria ${selectedCategoryLabel || selectedCategoryNode?.title || 'selezionata'}`;
 ---
 
 	<section class="products_block" data-aos="fade-up" data-aos-duration="1500">
@@ -399,43 +407,63 @@ const displayedProductsData = hasSubcategories ? [] : hasSearchQuery ? searchedP
 				searchValue={searchQueryRaw}
 			/>
 
-		<div class="products_selected_filters">
-			{!hasSubcategories && productsData.length > 0 && (
+		{!hasSubcategories && productsData.length > 0 && (
+			<div class="products_selected_filters">
 				<div class="products_category_tags" data-category-tag-wrap>
 					<div class="products_tag_pills" data-category-tag-pills-selected></div>
 					<button class="products_tag_pills_toggle" type="button" data-tag-pills-toggle aria-expanded="false" aria-label="Espandi filtri tag">+</button>
 				</div>
-			)}
-		</div>
+			</div>
+		)}
 
 		{hasSubcategories ? (
 			<>
 				{hasSearchQuery && (
 					<div class="products_results_head">
 						<p class="products_results_count" data-results-count>
-							{displayedSubcategoryCards.length} categorie
+							{displayedProductCountLabel}, {displayedCategoryCountLabel}
 						</p>
 					</div>
 				)}
-				<div class="products_result_section" data-subcategories-categories-section>
-					<h3 class="products_result_section_title">Categorie</h3>
-					<div class="products_subcategories_grid">
-					{displayedSubcategoryCards.map((entry) => (
-						<a class="products_subcategory_card" href={entry.href}>
-							{entry.imageSrc && (
-								<div class="products_subcategory_media">
-									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
-								</div>
-							)}
-							<h3 class="products_subcategory_title">{entry.title}</h3>
-							{entry.description && <p class="products_subcategory_description">{entry.description}</p>}
-						</a>
-					))}
+				{hasSearchQuery && displayedProductsData.length > 0 && (
+					<div class="products_result_section" data-subcategories-products-section>
+						<h3 class="products_result_section_title">{searchProductsTitle}</h3>
+						<div class="products_grid">
+							{displayedProductsData.map((entry) => (
+								<a class="products_card" href={entry.href} data-tags={entry.tags.map((tag) => tag.slug).join(',')} data-search={entry.searchText}>
+									{entry.imageSrc && (
+										<div class="products_card_media">
+											<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+										</div>
+									)}
+									<h3 class="products_card_title">{entry.title}</h3>
+									{entry.categoryPathLabel && <p class="products_card_category_path">{entry.categoryPathLabel}</p>}
+								</a>
+							))}
+						</div>
 					</div>
-				</div>
-				{displayedSubcategoryCards.length === 0 && (
+				)}
+				{displayedSubcategoryCards.length > 0 && (
+					<div class="products_result_section" data-subcategories-categories-section>
+						<h3 class="products_result_section_title">Categorie</h3>
+						<div class="products_subcategories_grid">
+						{displayedSubcategoryCards.map((entry) => (
+							<a class="products_subcategory_card" href={entry.href}>
+								{entry.imageSrc && (
+									<div class="products_subcategory_media">
+										<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
+									</div>
+								)}
+								<h3 class="products_subcategory_title">{entry.title}</h3>
+								{entry.description && <p class="products_subcategory_description">{entry.description}</p>}
+							</a>
+						))}
+						</div>
+					</div>
+				)}
+				{displayedSubcategoryCards.length === 0 && displayedProductsData.length === 0 && (
 					<p class="products_empty_static products_empty_subcategories">
-						Nessuna sottocategoria trovata con la ricerca inserita.
+						Nessuna categoria o prodotto trovato con la ricerca inserita.
 					</p>
 				)}
 			</>
@@ -455,6 +483,7 @@ const displayedProductsData = hasSubcategories ? [] : hasSearchQuery ? searchedP
 								</div>
 							)}
 							<h3 class="products_card_title">{entry.title}</h3>
+							{hasSearchQuery && entry.categoryPathLabel && <p class="products_card_category_path">{entry.categoryPathLabel}</p>}
 						</a>
 					))}
 				</div>
@@ -841,6 +870,14 @@ const displayedProductsData = hasSubcategories ? [] : hasSearchQuery ? searchedP
 		margin: 0;
 		font-size: 15px;
 		line-height: 1.15;
+		text-align: center;
+	}
+
+	.products_card_category_path {
+		margin: -6px 0 0;
+		font-size: 13px;
+		line-height: 1.35;
+		color: rgba(0, 0, 0, 0.62);
 		text-align: center;
 	}
 
