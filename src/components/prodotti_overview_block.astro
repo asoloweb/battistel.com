@@ -7,6 +7,8 @@ import { slugifyLabel } from '../lib/slug';
 const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/491185c0-ede3-4ffd-b149-5872266922fa';
 const PRODUCT_CARD_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
 const initialSearchQuery = (Astro.url.searchParams.get('q') || '').trim();
+const searchType = (Astro.url.searchParams.get('type') || '').trim().toLowerCase();
+const searchBrandsOnly = searchType === 'marchi';
 
 interface Category {
 	id?: number | string;
@@ -272,6 +274,7 @@ const productsData = products
 		const slug = productSlugMap.get(product.id) || '';
 		if (!slug) return null;
 		const title = getProductTitle(product) || 'Prodotto';
+		const brandName = product.marchio && typeof product.marchio === 'object' ? product.marchio.nome_marchio?.trim() || '' : '';
 		const tags = extractProductTags(product);
 		const searchableTags = extractSearchableTagLabels(product);
 		const packaging = splitCommaValues(product.imballo);
@@ -287,10 +290,11 @@ const productsData = products
 				format: 'webp',
 			}),
 			packaging,
-			searchText: [title, ...searchableTags, ...packaging].join(' ').toLowerCase(),
+			searchText: [title, brandName, ...searchableTags, ...packaging].join(' ').toLowerCase(),
+			brandSearchText: brandName.toLowerCase(),
 		};
 	})
-	.filter((entry): entry is { title: string; href: string; imageSrc: string; packaging: string[]; searchText: string } => Boolean(entry));
+	.filter((entry): entry is { title: string; href: string; imageSrc: string; packaging: string[]; searchText: string; brandSearchText: string } => Boolean(entry));
 ---
 
 <section class="products_overview" data-aos="fade-up" data-aos-duration="1500">
@@ -336,7 +340,7 @@ const productsData = products
 				<h3 class="products_result_section_title">Prodotti</h3>
 				<div class="products_grid" data-products-overview-grid>
 					{productsData.map((entry) => (
-						<a class="products_card" href={entry.href} data-search={entry.searchText} data-packaging={entry.packaging.join('||').toLowerCase()}>
+						<a class="products_card" href={entry.href} data-search={entry.searchText} data-brand-search={entry.brandSearchText} data-packaging={entry.packaging.join('||').toLowerCase()}>
 							{entry.imageSrc && (
 								<div class="products_card_media">
 									<img src={entry.imageSrc} alt={entry.title} loading="lazy" />
@@ -371,7 +375,7 @@ const productsData = products
 	</div>
 </section>
 
-<script is:inline>
+<script is:inline define:vars={{ searchBrandsOnly }}>
 	(() => {
 		const searchForm = document.querySelector('[data-products-overview-search-form]');
 		const searchInput = document.querySelector('[data-products-overview-search]');
@@ -445,15 +449,19 @@ const productsData = products
 			let visibleCategoryCount = 0;
 
 			productCards.forEach((card) => {
-				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
+				const searchable = (card.getAttribute(searchBrandsOnly ? 'data-brand-search' : 'data-search') || '').toLowerCase();
 				const packagingRaw = card.getAttribute('data-packaging') || '';
-				const packagingMatch = matchesPackagingQuery(packagingRaw, activeSearchTerm);
+				const packagingMatch = searchBrandsOnly ? null : matchesPackagingQuery(packagingRaw, activeSearchTerm);
 				const match = packagingMatch === null ? matchesSearch(searchable, activeSearchTerm) : packagingMatch;
 				card.style.display = match ? '' : 'none';
 				if (match) visibleProductCount += 1;
 			});
 
 			categoryCards.forEach((card) => {
+				if (searchBrandsOnly) {
+					card.style.display = 'none';
+					return;
+				}
 				const searchable = (card.getAttribute('data-search') || '').toLowerCase();
 				const match = matchesSearch(searchable, activeSearchTerm);
 				card.style.display = match ? '' : 'none';
@@ -465,10 +473,12 @@ const productsData = products
 			if (resultsWrap instanceof HTMLElement) resultsWrap.hidden = !activeSearchTerm;
 			if (categoriesWrap instanceof HTMLElement) categoriesWrap.hidden = Boolean(activeSearchTerm);
 			if (productSection instanceof HTMLElement) productSection.hidden = visibleProductCount === 0;
-			if (categorySection instanceof HTMLElement) categorySection.hidden = visibleCategoryCount === 0;
+			if (categorySection instanceof HTMLElement) categorySection.hidden = searchBrandsOnly || visibleCategoryCount === 0;
 			if (emptyElement instanceof HTMLElement) emptyElement.style.display = visibleCount > 0 ? 'none' : 'block';
 			if (countElement instanceof HTMLElement) {
-				countElement.textContent = `${visibleCount} risultati (${visibleCategoryCount} categorie, ${visibleProductCount} prodotti)`;
+				countElement.textContent = searchBrandsOnly
+					? `${visibleProductCount} prodotti`
+					: `${visibleCount} risultati (${visibleCategoryCount} categorie, ${visibleProductCount} prodotti)`;
 			}
 			if (clearButton instanceof HTMLElement) clearButton.style.visibility = activeSearchTerm ? 'visible' : 'hidden';
 		};

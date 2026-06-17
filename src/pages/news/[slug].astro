@@ -205,12 +205,12 @@ const documents = getDocuments(item);
 				</section>
 			)}
 			{item.link && item.label_link && (
-				<a class="MainButton news_single_link" href={item.link}>
+				<a class="MainButton news_single_link" href={item.link} target="_blank" rel="noopener noreferrer">
 					{item.label_link}
 				</a>
 			)}
 			{item.link && !item.label_link && (
-				<a class="MainButton news_single_link" href={item.link}>
+				<a class="MainButton news_single_link" href={item.link} target="_blank" rel="noopener noreferrer">
 					Apri link
 				</a>
 			)}

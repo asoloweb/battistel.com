@@ -67,7 +67,19 @@ a {
   text-decoration: none;
 }
 
-p a {
+p a,
+.hero_text a,
+.news_single_text a,
+.lavoro_card_excerpt a,
+.lavoro_card_desc a,
+.anni_timeline_description a,
+.content_block :is(p, li) a,
+.news_single_text :is(p, li) a,
+.lavoro_card_excerpt :is(p, li) a,
+.lavoro_card_desc :is(p, li) a,
+.anni_timeline_description :is(p, li) a,
+.footer_location_block :is(p, li) a,
+.footer_data :is(p, li) a {
   color: var(--arancione-battistel);
   font-weight: 700;
   text-decoration: underline;

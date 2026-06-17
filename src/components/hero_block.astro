@@ -273,10 +273,9 @@ function resolveVideoSrc(value: string) {
 		display: block;
 		object-fit: contain;
 		object-position: center;
-		background-color: #fff;
+		background-color: transparent;
 		border-radius: 20px;
-		box-shadow: 0 12px 26px rgba(0, 0, 0, 0.2);
-		transition: transform 280ms ease, z-index 280ms ease, box-shadow 280ms ease;
+		transition: transform 280ms ease, z-index 280ms ease;
 	}
 
 	.hero_image_primary {
@@ -296,7 +295,6 @@ function resolveVideoSrc(value: string) {
 	@media (hover: hover) {
 		.hero_images_stack .hero_image:hover {
 			transform: scale(1.03);
-			box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
 		}
 
 		.hero_images_stack .hero_image_primary:hover {
@@ -306,7 +304,6 @@ function resolveVideoSrc(value: string) {
 		.hero_images_stack .hero_image_secondary:hover {
 			transform: scale(1.06);
 			z-index: 7;
-			box-shadow: 0 22px 40px rgba(0, 0, 0, 0.26);
 		}
 	}
 

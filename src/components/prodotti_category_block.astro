@@ -35,6 +35,7 @@ interface Product {
 	codice_prodotto?: string;
 	titolo?: string;
 	foto_prodotto?: string;
+	marchio?: { id?: number | string; nome_marchio?: string } | number | null;
 	Categoria?: CategoryRelation[];
 	Tag?: { Tags_id?: { titolo_tag?: string; nascosto?: boolean | number | string | null } | number | null }[];
 	[key: string]: unknown;
@@ -146,7 +147,7 @@ async function fetchProducts(): Promise<Product[]> {
 		const url = directusItemsUrl('Prodotti');
 		url.searchParams.set(
 			'fields',
-			'*,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag,Tag.Tags_id.nascosto,descrizione_breve,descrizione_estesa'
+			'*,marchio.id,marchio.nome_marchio,Categoria.Categorie_id.id,Categoria.Categorie_id.titolo_categoria,Categoria.Categorie_id.status,Tag.Tags_id.titolo_tag,Tag.Tags_id.nascosto,descrizione_breve,descrizione_estesa'
 		);
 		url.searchParams.set('filter[status][_eq]', 'published');
 		url.searchParams.set('limit', '-1');
@@ -332,6 +333,7 @@ const productsData = products
 
 		const tags = extractProductTags(product);
 		const searchTagLabels = extractSearchTagLabels(product);
+		const brandName = product.marchio && typeof product.marchio === 'object' ? product.marchio.nome_marchio?.trim() || '' : '';
 
 		return {
 			title: getProductTitle(product) || 'Prodotto',
@@ -348,6 +350,7 @@ const productsData = products
 			tags,
 			searchText: normalizeForSearch([
 				getProductTitle(product) || 'Prodotto',
+				brandName,
 				String(product.codice_prodotto || '').trim(),
 				String(product.descrizione_breve || '').trim(),
 				String(product.descrizione_estesa || '').trim(),

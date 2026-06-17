@@ -58,7 +58,7 @@ const brands = await fetchBrands();
 				{brands.map((brand) => {
 					const imageSrc = resolveImageSrc(brand.logo_marchio);
 					const brandName = (brand.nome_marchio || '').trim();
-					const href = brandName ? `/prodotti?q=${encodeURIComponent(brandName)}` : '';
+					const href = brandName ? `/prodotti?q=${encodeURIComponent(brandName)}&type=marchi` : '';
 					const Tag = href ? 'a' : 'div';
 
 					return (
