@@ -6,11 +6,17 @@ const directusUrl =
   process.env.PUBLIC_DIRECTUS_URL ||
   process.env.DIRECTUS_URL ||
   'https://admin.battistel.com';
+const normalizedDirectusUrl = directusUrl
+  .trim()
+  .replace('battistel.prometeo.com', 'admin.battistel.com');
+const parsedDirectusUrl = normalizedDirectusUrl.startsWith('http://') || normalizedDirectusUrl.startsWith('https://')
+  ? normalizedDirectusUrl
+  : `https://${normalizedDirectusUrl || 'admin.battistel.com'}`;
 let directusProtocol = 'https';
 let directusHostname = 'admin.battistel.com';
 
 try {
-  const parsed = new URL(directusUrl);
+  const parsed = new URL(parsedDirectusUrl);
   directusProtocol = parsed.protocol.replace(':', '');
   directusHostname = parsed.hostname;
 } catch {

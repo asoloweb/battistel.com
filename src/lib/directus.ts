@@ -3,7 +3,14 @@ const rawDirectusUrl =
 	import.meta.env.DIRECTUS_URL ||
 	'https://admin.battistel.com';
 
-const normalizedDirectusUrl = rawDirectusUrl.replace('battistel.prometeo.com', 'admin.battistel.com');
+function normalizeDirectusUrl(value: string) {
+	const cleaned = value.trim().replace('battistel.prometeo.com', 'admin.battistel.com');
+	if (!cleaned) return 'https://admin.battistel.com';
+	if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
+	return `https://${cleaned}`;
+}
+
+const normalizedDirectusUrl = normalizeDirectusUrl(rawDirectusUrl);
 
 export const DIRECTUS_URL = normalizedDirectusUrl.replace(/\/+$/, '');
 
