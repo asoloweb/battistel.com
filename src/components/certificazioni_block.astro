@@ -7,6 +7,7 @@ interface Certification {
 	nome_certificazione?: string;
 	logo_certificazione?: string | { id?: string | null } | null;
 	url_certificazione?: string;
+	Documento?: string | { id?: string | null } | null;
 }
 
 interface Props {
@@ -32,6 +33,12 @@ function resolveImageSrc(value: Certification['logo_certificazione']) {
 	});
 }
 
+function resolveDocumentHref(value: Certification['Documento']) {
+	const id = resolveAssetId(value);
+	if (!id) return '';
+	return directusAssetUrl(id);
+}
+
 function normalizeHref(value: string | undefined) {
 	if (!value) return '';
 	const trimmed = value.trim();
@@ -43,7 +50,7 @@ function normalizeHref(value: string | undefined) {
 async function fetchCertifications(): Promise<Certification[]> {
 	try {
 		const url = directusItemsUrl('Certificazioni');
-		url.searchParams.set('fields', 'id,nome_certificazione,logo_certificazione,url_certificazione,sort');
+		url.searchParams.set('fields', 'id,nome_certificazione,logo_certificazione,url_certificazione,Documento,sort');
 		url.searchParams.set('sort', 'sort,nome_certificazione');
 		const response = await directusFetch(url);
 		if (!response.ok) return [];
@@ -66,27 +73,35 @@ const certifications = await fetchCertifications();
 				{certifications.map((certification) => {
 					const imageSrc = resolveImageSrc(certification.logo_certificazione);
 					const href = normalizeHref(certification.url_certificazione);
-					const Tag = href ? 'a' : 'div';
+					const documentHref = resolveDocumentHref(certification.Documento);
+					const ImageTag = href ? 'a' : 'div';
 
 					return (
-						<Tag
-							class="certificazione_item"
-							href={href || undefined}
-							target={href ? '_blank' : undefined}
-							rel={href ? 'noopener noreferrer' : undefined}
-						>
-							{imageSrc ? (
-								<img
-									src={imageSrc}
-									alt={certification.nome_certificazione || 'Certificazione'}
-									loading="lazy"
-								/>
-							) : (
-								<span class="certificazione_fallback">
-									{certification.nome_certificazione || 'Certificazione'}
-								</span>
+						<div class="certificazione_card">
+							<ImageTag
+								class="certificazione_item"
+								href={href || undefined}
+								target={href ? '_blank' : undefined}
+								rel={href ? 'noopener noreferrer' : undefined}
+							>
+								{imageSrc ? (
+									<img
+										src={imageSrc}
+										alt={certification.nome_certificazione || 'Certificazione'}
+										loading="lazy"
+									/>
+								) : (
+									<span class="certificazione_fallback">
+										{certification.nome_certificazione || 'Certificazione'}
+									</span>
+								)}
+							</ImageTag>
+							{documentHref && (
+								<a class="certificazione_document_link" href={documentHref} target="_blank" rel="noopener noreferrer">
+									Scarica certificazione
+								</a>
 							)}
-						</Tag>
+						</div>
 					);
 				})}
 			</div>
@@ -116,6 +131,13 @@ const certifications = await fetchCertifications();
 		display: grid;
 		grid-template-columns: repeat(5, minmax(0, 1fr));
 		gap: 18px;
+	}
+
+	.certificazione_card {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		align-items: stretch;
 	}
 
 	.certificazione_item {
@@ -149,6 +171,16 @@ const certifications = await fetchCertifications();
 		font-weight: 600;
 		color: var(--blu-battistel);
 		text-align: center;
+	}
+
+	.certificazione_document_link {
+		align-self: center;
+		color: var(--arancione-battistel);
+		font-size: 14px;
+		font-weight: 700;
+		line-height: 1.25;
+		text-align: center;
+		text-decoration: underline;
 	}
 
 	@media (max-width: 1100px) {
