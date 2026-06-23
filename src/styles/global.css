@@ -648,6 +648,10 @@ p a,
     margin-top: 70px;
   }
 
+  .page_header_inner {
+    margin-top: 165px;
+  }
+
   .content_block_hero_block {
     padding-left: 20px;
     padding-right: 20px;

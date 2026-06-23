@@ -1,8 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PageContent from '../components/PageContent.astro';
+import PageHeader from '../components/PageHeader.astro';
 import ContactForm from '../components/ContactForm.astro';
-import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
 
 type Page = {
 	status?: string;
@@ -36,15 +37,7 @@ const page: Page | null = await fetchContactsPage();
 const pageTitle = page?.title || page?.Titolo || '';
 const pageDescription = page?.description || '';
 
-function resolveImageSrc(value: string) {
-	if (!value) return '';
-	if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) {
-		return value;
-	}
-	return `${DIRECTUS_URL}/assets/${value}`;
-}
-
-const pageHeaderImage = page?.featured_image ? resolveImageSrc(page.featured_image) : '';
+const pageHeaderImage = page?.featured_image ? directusAssetUrl(page.featured_image) : '';
 const showPageHeader = page ? !page.hide_page_header : false;
 ---
 
@@ -53,17 +46,7 @@ const showPageHeader = page ? !page.hide_page_header : false;
 	seoTitle={page?.seo_title}
 	seoDescription={page?.seo_desc}
 >
-	{showPageHeader && (
-		<div
-			class="page_header"
-			style={pageHeaderImage ? `background-image: url('${pageHeaderImage}')` : undefined}
-		>
-			<div class="page_header_inner">
-				{pageTitle && <h1 data-aos="fade-up" data-aos-duration="1500">{pageTitle}</h1>}
-				{pageDescription && <p data-aos="fade-up" data-aos-duration="1800">{pageDescription}</p>}
-			</div>
-		</div>
-	)}
+	{showPageHeader && <PageHeader title={pageTitle} description={pageDescription} image={pageHeaderImage} />}
 
 	<div class="contatti_layout">
 		<div class="contatti_column contatti_content">

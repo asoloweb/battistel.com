@@ -1,0 +1,19 @@
+---
+interface Props {
+	title?: string;
+	description?: string;
+	image?: string;
+}
+
+const { title = '', description = '', image = '' } = Astro.props;
+---
+
+<div
+	class="page_header"
+	style={image ? `background-image: url('${image}')` : undefined}
+>
+	<div class="page_header_inner">
+		{title && <h1 data-aos="fade-up" data-aos-duration="1500">{title}</h1>}
+		{description && <p data-aos="fade-up" data-aos-duration="1800">{description}</p>}
+	</div>
+</div>

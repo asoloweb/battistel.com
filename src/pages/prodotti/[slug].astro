@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import PageHeader from '../../components/PageHeader.astro';
 import ProductInquiryForm from '../../components/ProductInquiryForm.astro';
 import { DIRECTUS_URL, directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
 import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveProductThumbnailSrc } from '../../lib/products';
@@ -458,14 +459,7 @@ const relatedProducts = (primaryCategory
 ---
 
 <BaseLayout title={title}>
-	<div
-		class="page_header"
-		style={pageHeaderImage ? `background-image: url('${pageHeaderImage}')` : undefined}
-	>
-		<div class="page_header_inner">
-			<h1 data-aos="fade-up" data-aos-duration="1500">{title}</h1>
-		</div>
-	</div>
+	<PageHeader title={title} image={pageHeaderImage} />
 
 	<section class="product_detail">
 		<div class="product_detail_inner">

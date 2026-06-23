@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHeader from '../../components/PageHeader.astro';
 import { directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
 import { slugifyNewsTitle } from '../../lib/news-slug';
 
@@ -88,26 +89,7 @@ const seoDescription = page?.seo_desc || pageDescription;
 ---
 
 <BaseLayout title={pageTitle} seoTitle={page?.seo_title} seoDescription={seoDescription}>
-	{headerImage && (
-		<div class="page_header" style={`background-image: url('${headerImage}')`}>
-			<div class="page_header_inner">
-				<h1 data-aos="fade-up" data-aos-duration="1500">{pageTitle}</h1>
-				<p class="page_header_description" data-aos="fade-up" data-aos-duration="1500" data-aos-delay="120">
-					{pageDescription}
-				</p>
-			</div>
-		</div>
-	)}
-	{!headerImage && (
-		<div class="page_header">
-			<div class="page_header_inner">
-				<h1 data-aos="fade-up" data-aos-duration="1500">{pageTitle}</h1>
-				<p class="page_header_description" data-aos="fade-up" data-aos-duration="1500" data-aos-delay="120">
-					{pageDescription}
-				</p>
-			</div>
-		</div>
-	)}
+	<PageHeader title={pageTitle} description={pageDescription} image={headerImage} />
 	<section class="news_list">
 		<div class="news_grid">
 			{allNews?.map((item) => {
@@ -130,61 +112,6 @@ const seoDescription = page?.seo_desc || pageDescription;
 </BaseLayout>
 
 <style>
-	.page_header {
-		min-height: 40vh;
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		background-size: cover;
-		background-position: center;
-		position: relative;
-	}
-	.page_header:not([style]) {
-		background: var(--theme--primary);
-	}
-	.page_header::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.4);
-	}
-	.page_header_inner {
-		position: relative;
-		z-index: 1;
-		width: 100%;
-		max-width: var(--max-width);
-		margin: 0 auto;
-		padding: 100px 16px 32px;
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		justify-content: center;
-	}
-	.page_header_inner h1 {
-		color: #fff;
-		font-size: clamp(42px, 6vw, 72px);
-		margin: 30px 0 20px;
-	}
-	.page_header_description {
-		max-width: calc(var(--max-width) / 2);
-		margin: 0;
-		font-size: clamp(16px, 2vw, 22px);
-		line-height: 1.4;
-		color: rgba(255, 255, 255, 0.92);
-		text-align: left;
-	}
-
-	@media (max-width: 640px) {
-		.page_header_inner h1 {
-			font-size: 32px;
-			margin: 70px 0 20px;
-		}
-
-		.page_header_description {
-			max-width: 100%;
-			font-size: 18px;
-		}
-	}
 	.news_list {
 		padding: 40px 20px 60px;
 		max-width: var(--max-width);

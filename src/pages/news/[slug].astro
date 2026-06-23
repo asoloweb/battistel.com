@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHeader from '../../components/PageHeader.astro';
 import { DIRECTUS_URL, directusAssetUrl, directusFetch, directusItemsUrl } from '../../lib/directus';
 import { slugifyNewsTitle } from '../../lib/news-slug';
 
@@ -166,13 +167,7 @@ const documents = getDocuments(item);
 ---
 
 <BaseLayout title={item.titolo || 'News'}>
-	{headerImage && (
-		<div class="page_header" style={`background-image: url('${headerImage}')`}>
-			<div class="page_header_inner">
-				<h1 data-aos="fade-up" data-aos-duration="1500">{item.titolo}</h1>
-			</div>
-		</div>
-	)}
+	<PageHeader title={item.titolo} image={headerImage} />
 	<article class="news_single">
 		<div class="news_single_inner">
 			{newsDate && <p class="news_single_date">{newsDate}</p>}
@@ -244,32 +239,6 @@ const documents = getDocuments(item);
 </BaseLayout>
 
 <style>
-	.page_header {
-		min-height: 420px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background-size: cover;
-		background-position: center;
-		position: relative;
-	}
-	.page_header::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.4);
-	}
-	.page_header_inner {
-		position: relative;
-		z-index: 1;
-		text-align: center;
-		padding: 40px 20px;
-	}
-	.page_header_inner h1 {
-		color: #fff;
-		font-size: clamp(42px, 6vw, 72px);
-		margin: 0;
-	}
 	.news_single {
 		padding: 40px 20px 60px;
 	}

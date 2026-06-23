@@ -1,5 +1,6 @@
 ---
 import HeroBlock from '../components/hero_block.astro';
+import PageHeader from '../components/PageHeader.astro';
 import TitleBlock from '../components/title_block.astro';
 import SliderBlock from '../components/slider_block.astro';
 import CardsBlock from '../components/cards_block.astro';
@@ -226,15 +227,7 @@ function getBlockItemId(block: EditorEntry) {
 {page ? (
 	<>
 		{showPageHeader ? (
-			<div
-				class="page_header"
-				style={pageHeaderImage ? `background-image: url('${pageHeaderImage}')` : undefined}
-			>
-				<div class="page_header_inner">
-					{pageTitle && <h1 data-aos="fade-up" data-aos-duration="1500">{pageTitle}</h1>}
-					{pageDescription && <p data-aos="fade-up" data-aos-duration="1800">{pageDescription}</p>}
-				</div>
-			</div>
+			<PageHeader title={pageTitle} description={pageDescription} image={pageHeaderImage} />
 		) : (
 			<>
 				
