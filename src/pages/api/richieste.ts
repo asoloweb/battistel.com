@@ -1,13 +1,21 @@
 import type { APIRoute } from 'astro';
 import { DIRECTUS_URL } from '../../lib/directus';
 
+function normalizeWebhookUrl(value: string) {
+	const cleaned = value.trim().replace('battistel.prometeo.com', 'admin.battistel.com');
+	if (!cleaned) return '';
+	if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
+	return `https://${cleaned}`;
+}
+
 export const POST: APIRoute = async ({ request }) => {
-	const webhookUrl =
+	const rawWebhookUrl =
 		import.meta.env.DIRECTUS_WEBHOOK_RICHIESTE ||
 		import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE ||
 		(import.meta.env.DIRECTUS_FLOW_TRIGGER_ID || import.meta.env.PUBLIC_DIRECTUS_FLOW_TRIGGER_ID
 			? `${DIRECTUS_URL}/flows/trigger/${import.meta.env.DIRECTUS_FLOW_TRIGGER_ID || import.meta.env.PUBLIC_DIRECTUS_FLOW_TRIGGER_ID}`
 			: '');
+	const webhookUrl = normalizeWebhookUrl(rawWebhookUrl);
 
 	if (!webhookUrl) {
 		return new Response(JSON.stringify({ error: 'Webhook richieste non configurato' }), {
