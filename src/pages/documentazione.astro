@@ -1,9 +1,13 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PageContent from '../components/PageContent.astro';
-import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
+import { DIRECTUS_URL, directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
 
-const DOCUMENT_ICON_URL = `${DIRECTUS_URL}/assets/fcc29525-996f-4a12-bf35-567d2b1a198a`;
+const DOCUMENT_ICON_URL = directusAssetUrl('fcc29525-996f-4a12-bf35-567d2b1a198a', {
+	width: 96,
+	quality: 80,
+	format: 'webp',
+});
 
 type Page = {
 	status?: string;

@@ -79,7 +79,11 @@ for (const item of allNews) {
 	allSlugs.set(item.id, slug);
 }
 
-const defaultHeaderImage = 'https://admin.battistel.com/assets/fc2a2b77-bff1-4789-b7f1-d2b9e1a1f7ef';
+const defaultHeaderImage = directusAssetUrl('fc2a2b77-bff1-4789-b7f1-d2b9e1a1f7ef', {
+	width: 1920,
+	quality: 80,
+	format: 'webp',
+});
 const headerImage = page?.featured_image
 	? resolveImageSrc(page.featured_image, { width: 1920, height: 1080, quality: 80, format: 'webp' })
 	: defaultHeaderImage;

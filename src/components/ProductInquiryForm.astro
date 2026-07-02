@@ -1,5 +1,5 @@
 ---
-import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
 
 interface Props {
 	productTitle: string;
@@ -25,7 +25,11 @@ try {
 				: optionsPayload?.data;
 		const logoValue = options?.logo_dark || options?.logo_light;
 		if (typeof logoValue === 'string' && logoValue) {
-			logoDarkSrc = `${DIRECTUS_URL}/assets/${logoValue}`;
+			logoDarkSrc = directusAssetUrl(logoValue, {
+				width: 360,
+				quality: 80,
+				format: 'webp',
+			});
 		}
 	}
 } catch (error) {

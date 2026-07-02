@@ -7,8 +7,16 @@ import { DIRECTUS_URL, directusAssetUrl, directusFetch, directusItemsUrl } from 
 import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveProductThumbnailSrc } from '../../lib/products';
 import { slugifyLabel } from '../../lib/slug';
 
-const DEFAULT_PRODUCT_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
-const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/491185c0-ede3-4ffd-b149-5872266922fa';
+const DEFAULT_PRODUCT_IMAGE = directusAssetUrl('929fe30e-dd29-4d56-99fe-d34325d9d70b', {
+	width: 1200,
+	quality: 74,
+	format: 'webp',
+});
+const CATEGORY_CARD_IMAGE = directusAssetUrl('491185c0-ede3-4ffd-b149-5872266922fa', {
+	width: 760,
+	quality: 72,
+	format: 'webp',
+});
 
 type Category = {
 	id?: number | string;
@@ -326,7 +334,11 @@ export async function getStaticPaths() {
 const { product: staticProduct } = Astro.props as { product: Product };
 const routeSlug = Astro.params.slug || '';
 const productsPage = await fetchProductsPage();
-const defaultPageHeaderImage = `${DIRECTUS_URL}/assets/491185c0-ede3-4ffd-b149-5872266922fa`;
+const defaultPageHeaderImage = directusAssetUrl('491185c0-ede3-4ffd-b149-5872266922fa', {
+	width: 1920,
+	quality: 80,
+	format: 'webp',
+});
 const allProducts = await fetchProducts();
 const allProductsSlugMap = buildProductSlugMap(allProducts);
 const liveProduct = allProducts.find((entry) => {

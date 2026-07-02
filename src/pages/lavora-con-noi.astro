@@ -46,7 +46,9 @@ const page: Page | null = await fetchWorkWithUsPage();
 const pageTitle = page?.title || page?.Titolo || '';
 const pageDescription = page?.description || '';
 
-const pageHeaderImage = page?.featured_image ? directusAssetUrl(page.featured_image) : '';
+const pageHeaderImage = page?.featured_image
+    ? directusAssetUrl(page.featured_image, { width: 1920, quality: 80, format: 'webp' })
+    : '';
 const showPageHeader = page ? !page.hide_page_header : false;
 
 async function fetchLavori(): Promise<Lavoro[]> {

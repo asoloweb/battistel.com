@@ -1,5 +1,5 @@
 ---
-import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
 
 interface MenuItem {
 	id?: number | string;
@@ -96,11 +96,11 @@ try {
 }
 
 function resolveImageSrc(value: string) {
-	if (!value) return '';
-	if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) {
-		return value;
-	}
-	return `${DIRECTUS_URL}/assets/${value}`;
+	return directusAssetUrl(value, {
+		width: 360,
+		quality: 80,
+		format: 'webp',
+	});
 }
 
 function getItemPage(item: MenuItem): PageItem | null {

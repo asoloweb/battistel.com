@@ -4,8 +4,16 @@ import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/direct
 import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveAssetId, resolveProductThumbnailSrc } from '../lib/products';
 import { slugifyLabel } from '../lib/slug';
 
-const CATEGORY_CARD_IMAGE = 'https://admin.battistel.com/assets/491185c0-ede3-4ffd-b149-5872266922fa';
-const PRODUCT_CARD_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
+const CATEGORY_CARD_IMAGE = directusAssetUrl('491185c0-ede3-4ffd-b149-5872266922fa', {
+	width: 760,
+	quality: 72,
+	format: 'webp',
+});
+const PRODUCT_CARD_IMAGE = directusAssetUrl('929fe30e-dd29-4d56-99fe-d34325d9d70b', {
+	width: 760,
+	quality: 72,
+	format: 'webp',
+});
 
 interface Category {
 	id?: number | string;

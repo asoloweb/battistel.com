@@ -8,7 +8,7 @@ import CategorieProdottiBlock from '../components/categorie_prodotti_block.astro
 import MarchiBlock from '../components/marchi_block.astro';
 import CertificazioniBlock from '../components/certificazioni_block.astro';
 import NumeriBlock from '../components/numeri_block.astro';
-import { DIRECTUS_URL } from '../lib/directus';
+import { directusAssetUrl } from '../lib/directus';
 
 type HeroBlockItem = {
 	id: number;
@@ -150,11 +150,11 @@ const showPageHeader = page ? showHeader && !page.hide_page_header : false;
 const pageHeaderImage = page?.featured_image ? resolveImageSrc(page.featured_image) : '';
 
 function resolveImageSrc(value: string) {
-	if (!value) return '';
-	if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) {
-		return value;
-	}
-	return `${DIRECTUS_URL}/assets/${value}`;
+	return directusAssetUrl(value, {
+		width: 1920,
+		quality: 80,
+		format: 'webp',
+	});
 }
 
 function resolveCollection(block: EditorEntry) {

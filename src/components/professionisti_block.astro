@@ -37,7 +37,11 @@ const professionisti = await fetchProfessionisti();
 		<div class="professionisti_inner">
 			<div class="professionisti_grid">
 				{professionisti.map((item) => {
-					const imageSrc = directusAssetUrl(item.immagine);
+					const imageSrc = directusAssetUrl(item.immagine, {
+						width: 760,
+						quality: 72,
+						format: 'webp',
+					});
 					return (
 						<article class="professionista_card">
 							{imageSrc && (

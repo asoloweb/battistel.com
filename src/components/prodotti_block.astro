@@ -1,8 +1,12 @@
 ---
-import { directusFetch, directusItemsUrl } from '../lib/directus';
+import { directusAssetUrl, directusFetch, directusItemsUrl } from '../lib/directus';
 import { buildBrandLogoMap, buildProductSlugMap, getProductTitle, resolveProductThumbnailSrc } from '../lib/products';
 
-const PRODUCT_CARD_IMAGE = 'https://admin.battistel.com/assets/929fe30e-dd29-4d56-99fe-d34325d9d70b';
+const PRODUCT_CARD_IMAGE = directusAssetUrl('929fe30e-dd29-4d56-99fe-d34325d9d70b', {
+	width: 760,
+	quality: 72,
+	format: 'webp',
+});
 
 interface Category {
 	id?: number | string;

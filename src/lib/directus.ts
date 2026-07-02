@@ -13,6 +13,7 @@ function normalizeDirectusUrl(value: string) {
 const normalizedDirectusUrl = normalizeDirectusUrl(rawDirectusUrl);
 
 export const DIRECTUS_URL = normalizedDirectusUrl.replace(/\/+$/, '');
+const enableAssetTransforms = import.meta.env.PUBLIC_DIRECTUS_ASSET_TRANSFORMS === 'true';
 
 export function directusItemsUrl(path: string) {
 	const cleanedPath = path.replace(/^\/+/, '');
@@ -33,9 +34,15 @@ type DirectusAssetOptions = {
 export function directusAssetUrl(value: string | undefined, options: DirectusAssetOptions = {}) {
 	if (!value) return '';
 
-	// Keep options in the signature for backward compatibility, but do not append
-	// any transform params: image rendering is controlled via CSS only.
-	const applyTransforms = (url: URL) => url.toString();
+	const applyTransforms = (url: URL) => {
+		if (!enableAssetTransforms) return url.toString();
+
+		if (options.width) url.searchParams.set('width', String(options.width));
+		if (options.quality) url.searchParams.set('quality', String(options.quality));
+		if (options.format) url.searchParams.set('format', options.format);
+
+		return url.toString();
+	};
 
 	if (value.startsWith('http://') || value.startsWith('https://')) {
 		try {
