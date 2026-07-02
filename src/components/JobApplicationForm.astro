@@ -1,6 +1,4 @@
 ---
-import { DIRECTUS_URL } from '../lib/directus';
-
 interface Lavoro {
     id: string;
     titolo: string;
@@ -12,13 +10,7 @@ interface Props {
 }
 
 const { title = 'Invia la tua candidatura', lavori = [] } = Astro.props;
-
-const flowTriggerId = import.meta.env.PUBLIC_DIRECTUS_FLOW_TRIGGER_ID;
-const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
-	? import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
-	: flowTriggerId
-	? `${DIRECTUS_URL}/flows/trigger/${flowTriggerId}`
-	: '';
+const webhookUrl = '/api/richieste';
 ---
 
 <section class="contact_form">

@@ -9,12 +9,7 @@ interface Props {
 
 const { productTitle, productCode = '', categoryName = '' } = Astro.props as Props;
 
-const flowTriggerId = import.meta.env.PUBLIC_DIRECTUS_FLOW_TRIGGER_ID;
-const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
-	? import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
-	: flowTriggerId
-	? `${DIRECTUS_URL}/flows/trigger/${flowTriggerId}`
-	: '';
+const webhookUrl = '/api/richieste';
 
 let logoDarkSrc = import.meta.env.PUBLIC_LOGO_DARK || import.meta.env.PUBLIC_LOGO_LIGHT || '/favicon.svg';
 

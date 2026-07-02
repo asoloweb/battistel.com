@@ -1,5 +1,5 @@
 ---
-import { DIRECTUS_URL, directusFetch, directusItemsUrl } from '../lib/directus';
+import { directusFetch, directusItemsUrl } from '../lib/directus';
 
 type PopupItem = {
 	id?: number;
@@ -10,12 +10,7 @@ type PopupItem = {
 	kicker?: string;
 };
 
-const flowTriggerId = import.meta.env.PUBLIC_DIRECTUS_FLOW_TRIGGER_ID;
-const webhookUrl = import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
-	? import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE
-	: flowTriggerId
-	? `${DIRECTUS_URL}/flows/trigger/${flowTriggerId}`
-	: '';
+const webhookUrl = '/api/richieste';
 
 let popupTitle = 'Richiedi preventivo';
 let popupDescription =
