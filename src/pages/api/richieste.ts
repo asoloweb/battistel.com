@@ -27,11 +27,10 @@ function decodeBase64(value: string) {
 	return bytes;
 }
 
-async function uploadCurriculum(payload: RichiestaPayload) {
+async function uploadCurriculum(payload: RichiestaPayload, token: string | undefined) {
 	const base64 = typeof payload.cv_base64 === 'string' ? payload.cv_base64 : '';
 	if (!base64) return null;
 
-	const token = import.meta.env.DIRECTUS_FILES_TOKEN;
 	if (!token) {
 		throw new Error('Caricamento curriculum non configurato');
 	}
@@ -82,7 +81,7 @@ async function uploadCurriculum(payload: RichiestaPayload) {
 	return result.data.id;
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
 	const rawWebhookUrl =
 		import.meta.env.DIRECTUS_WEBHOOK_RICHIESTE ||
 		import.meta.env.PUBLIC_DIRECTUS_WEBHOOK_RICHIESTE ||
@@ -115,7 +114,9 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	try {
-		const cvFileId = await uploadCurriculum(body);
+		const runtimeToken = locals.runtime.env.DIRECTUS_FILES_TOKEN;
+		const token = typeof runtimeToken === 'string' ? runtimeToken : import.meta.env.DIRECTUS_FILES_TOKEN;
+		const cvFileId = await uploadCurriculum(body, token);
 		if (cvFileId) body.cv_file = cvFileId;
 
 		const response = await fetch(webhookUrl, {
