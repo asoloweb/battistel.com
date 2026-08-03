@@ -65,7 +65,7 @@ async function uploadCurriculum(payload: RichiestaPayload) {
 
 	if (!response.ok) {
 		console.error('Errore caricamento curriculum su Directus:', response.status, responseBody);
-		throw new Error('Errore caricamento curriculum');
+		throw new Error(`Caricamento curriculum rifiutato da Directus (${response.status})`);
 	}
 
 	let result: { data?: { id?: unknown } };
@@ -132,7 +132,8 @@ export const POST: APIRoute = async ({ request }) => {
 		});
 	} catch (error) {
 		console.error('Errore invio richiesta a Directus:', error);
-		return new Response(JSON.stringify({ error: 'Errore invio richiesta' }), {
+		const message = error instanceof Error ? error.message : 'Errore invio richiesta';
+		return new Response(JSON.stringify({ error: message }), {
 			status: 502,
 			headers: { 'Content-Type': 'application/json' },
 		});
