@@ -163,16 +163,10 @@ const webhookUrl = '/api/richieste';
 					cv_filename: cvFilename,
 					cv_mime: cvMime,
 					cv_base64: cvBase64,
-					cv_data_url: cvBase64 ? `data:${cvMime || 'application/pdf'};base64,${cvBase64}` : '',
 					cv_size: cvFile?.size || 0,
 				};
 
-				const requestBody = {
-					...payload,
-					data: payload,
-					payload,
-					body: payload,
-				};
+				const requestBody = payload;
 
 				const response = await fetch(webhookUrl, {
 					method: 'POST',

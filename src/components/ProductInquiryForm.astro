@@ -169,12 +169,7 @@ try {
 				const response = await fetch(webhookUrl, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						...payload,
-						data: payload,
-						payload,
-						body: payload,
-					}),
+					body: JSON.stringify(payload),
 				});
 
 				const responseBody = await response.text();
