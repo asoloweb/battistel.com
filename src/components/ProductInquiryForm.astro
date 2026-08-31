@@ -77,10 +77,15 @@ try {
 					<input name="telefono" type="tel" autocomplete="tel" />
 				</label>
 
-				<label class="product_inquiry_field">
-					<span>Messaggio *</span>
-					<textarea name="messaggio" rows={6} required placeholder={`Vorrei maggiori informazioni su ${productTitle}`}></textarea>
-				</label>
+			<label class="product_inquiry_field">
+				<span>Indirizzo di destinazione *</span>
+				<input name="indirizzo_destinazione" type="text" required placeholder="Es. Via Roma 15, 35010 Padova (PD)" />
+			</label>
+
+			<label class="product_inquiry_field">
+				<span>Messaggio *</span>
+				<textarea name="messaggio" rows={6} required placeholder={`Vorrei maggiori informazioni su ${productTitle}`}></textarea>
+			</label>
 
 				<label class="product_inquiry_privacy">
 					<input name="privacy" type="checkbox" required />
@@ -137,34 +142,36 @@ try {
 				const productCode = String(formData.get('product_code') || '').trim();
 				const categoryName = String(formData.get('category_name') || '').trim();
 
-				const contattoLines = [
-					'Tipo richiesta: prodotto',
-					`Prodotto: ${productTitle}`,
-					`Codice prodotto: ${productCode || '-'}`,
-					`Categoria: ${categoryName || '-'}`,
-					`Ragione sociale: ${ragioneSociale}`,
-					`Referente: ${referente || '-'}`,
-					`Email: ${email}`,
-					`Telefono: ${telefono || '-'}`,
-					`Messaggio: ${messaggio}`,
-				];
+			const contattoLines = [
+				'Tipo richiesta: prodotto',
+				`Prodotto: ${productTitle}`,
+				`Codice prodotto: ${productCode || '-'}`,
+				`Categoria: ${categoryName || '-'}`,
+				`Ragione sociale: ${ragioneSociale}`,
+				`Referente: ${referente || '-'}`,
+				`Email: ${email}`,
+				`Telefono: ${telefono || '-'}`,
+				`Indirizzo di destinazione: ${String(formData.get('indirizzo_destinazione') || '').trim()}`,
+				`Messaggio: ${messaggio}`,
+			];
 
 				const contatto = contattoLines.join('\n');
 
-				const payload = {
-					tipo_richiesta: 'prodotto',
-					contatto,
-					contatto_email: sanitizeForWebhookTemplate(contatto),
-					product_title: productTitle,
-					product_code: productCode,
-					category_name: categoryName,
-					ragione_sociale: ragioneSociale,
-					referente,
-					email,
-					telefono,
-					messaggio,
-					cv_file: null,
-				};
+			const payload = {
+				tipo_richiesta: 'prodotto',
+				contatto,
+				contatto_email: sanitizeForWebhookTemplate(contatto),
+				product_title: productTitle,
+				product_code: productCode,
+				category_name: categoryName,
+				ragione_sociale: ragioneSociale,
+				referente,
+				email,
+				telefono,
+				indirizzo_destinazione: String(formData.get('indirizzo_destinazione') || '').trim(),
+				messaggio,
+				cv_file: null,
+			};
 
 				const response = await fetch(webhookUrl, {
 					method: 'POST',

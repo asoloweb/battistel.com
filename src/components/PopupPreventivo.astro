@@ -82,10 +82,15 @@ try {
 						</label>
 					</div>
 
-					<label class="quote_popup_field">
-						<span>Messaggio *</span>
-						<textarea name="messaggio" rows={5} required placeholder="Indica quantità, tempistiche e dettagli della richiesta."></textarea>
-					</label>
+				<label class="quote_popup_field">
+					<span>Indirizzo di destinazione *</span>
+					<input name="indirizzo_destinazione" type="text" required placeholder="Es. Via Roma 15, 35010 Padova (PD)" />
+				</label>
+
+				<label class="quote_popup_field">
+					<span>Messaggio *</span>
+					<textarea name="messaggio" rows={5} required placeholder="Indica quantità, tempistiche e dettagli della richiesta."></textarea>
+				</label>
 
 					<label class="quote_popup_privacy">
 						<input name="privacy" type="checkbox" required />
@@ -189,6 +194,7 @@ try {
 					`Referente: ${String(formData.get('referente') || '').trim() || '-'}`,
 					`Email: ${String(formData.get('email') || '').trim()}`,
 					`Telefono: ${String(formData.get('telefono') || '').trim() || '-'}`,
+					`Indirizzo di destinazione: ${String(formData.get('indirizzo_destinazione') || '').trim()}`,
 					`Messaggio: ${String(formData.get('messaggio') || '').trim()}`,
 				].join('\n');
 
@@ -201,6 +207,7 @@ try {
 					email: String(formData.get('email') || '').trim(),
 					telefono: String(formData.get('telefono') || '').trim(),
 					product_title: String(formData.get('product_title') || '').trim(),
+					indirizzo_destinazione: String(formData.get('indirizzo_destinazione') || '').trim(),
 					messaggio: String(formData.get('messaggio') || '').trim(),
 					contatto,
 					contatto_email: sanitizeForWebhookTemplate(contatto),

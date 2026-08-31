@@ -12,6 +12,7 @@ type NewsItem = {
 	video?: string;
 	immagine_copertina?: string;
 	date_created: string;
+	data_news?: string;
 	link?: string;
 	label_link?: string;
 };
@@ -52,10 +53,10 @@ type Page = {
 const newsUrl = directusItemsUrl('News');
 newsUrl.searchParams.set(
 	'fields',
-	'id,status,titolo,sottotitolo,video,immagine_copertina,date_created,link,label_link'
+		'id,status,titolo,sottotitolo,video,immagine_copertina,date_created,data_news,link,label_link'
 );
 newsUrl.searchParams.set('filter[status][_eq]', 'published');
-newsUrl.searchParams.set('sort', '-date_created');
+	newsUrl.searchParams.set('sort', '-data_news,-date_created');
 const newsResponse = await directusFetch(newsUrl);
 const newsPayload = await newsResponse.json();
 const allNews = Array.isArray(newsPayload?.data) ? (newsPayload.data as NewsItem[]) : [];
@@ -99,7 +100,7 @@ const seoDescription = page?.seo_desc || pageDescription;
 			{allNews?.map((item) => {
 				const slugValue = allSlugs.get(item.id);
 				const coverImage = resolveImageSrc(item.immagine_copertina);
-				const newsDate = formatNewsDate(item.date_created);
+				const newsDate = formatNewsDate(item.data_news || item.date_created);
 				return (
 					<a href={`/news/${slugValue}`} class="news_card">
 						{coverImage && <img src={coverImage} alt={item.titolo} loading="lazy" />}

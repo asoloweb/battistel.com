@@ -81,6 +81,8 @@ type Product = {
 	descrizione_estesa?: string;
 	imballo?: string;
 	foto_prodotto?: string;
+	seo_title?: string;
+	seo_desc?: string;
 	Categoria?: CategoryRelation[];
 	Categoria_correlata?: CategoryRelation[];
 	varianti_prodotto?: VariantRelation[];
@@ -470,7 +472,7 @@ const relatedProducts = (primaryCategory
 	: []);
 ---
 
-<BaseLayout title={title}>
+<BaseLayout title={product?.seo_title || title} seoDescription={product?.seo_desc}>
 	<PageHeader title={title} image={pageHeaderImage} />
 
 	<section class="product_detail">

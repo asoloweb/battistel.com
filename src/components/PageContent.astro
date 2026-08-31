@@ -57,9 +57,12 @@ type PageRef = {
 type SingleCardItem = {
 	id?: number;
 	titolo_card?: string;
+	sottotitolo_card?: string;
 	immagine?: string;
 	href?: string;
 	link?: PageRef | number | null;
+	link_label?: string;
+	link_esterno?: string;
 };
 
 type CardRelation = {
@@ -69,6 +72,7 @@ type CardRelation = {
 type CardsBlockItem = {
 	id?: number;
 	titolo?: string;
+	scorrimento_orizzontale?: boolean;
 	card?: CardRelation[] | SingleCardItem[];
 };
 
@@ -207,7 +211,7 @@ function normalizeCards(input: CardRelation[] | SingleCardItem[] | undefined) {
 					? (entry.single_card_id as SingleCardItem)
 					: null;
 			}
-			if ('titolo_card' in entry || 'immagine' in entry || 'href' in entry) {
+			if ('titolo_card' in entry || 'immagine' in entry || 'href' in entry || 'link_esterno' in entry || 'link_label' in entry) {
 				return entry as SingleCardItem;
 			}
 			return null;
@@ -297,13 +301,13 @@ function getBlockItemId(block: EditorEntry) {
 					);
 					break;
 				}
-				case 'cards_block': {
-					if (!itemObject) return null;
-					const cardsBlock = itemObject as CardsBlockItem;
-					const cards = normalizeCards(cardsBlock.card);
-					renderedBlock = <CardsBlock titolo={cardsBlock.titolo} card={cards} />;
-					break;
-				}
+			case 'cards_block': {
+				if (!itemObject) return null;
+				const cardsBlock = itemObject as CardsBlockItem;
+				const cards = normalizeCards(cardsBlock.card);
+				renderedBlock = <CardsBlock titolo={cardsBlock.titolo} card={cards} scorrimento_orizzontale={cardsBlock.scorrimento_orizzontale} />;
+				break;
+			}
 				case 'categorie_prodotti_block':
 				case 'categorie_prodotti': {
 					if (!itemObject) return null;

@@ -14,6 +14,7 @@ interface SingleCard {
 	href?: string;
 	link?: PageRef | number | null;
 	link_label?: string;
+	link_esterno?: string;
 }
 
 interface CardRelation {
@@ -23,9 +24,10 @@ interface CardRelation {
 interface Props {
 	titolo?: string;
 	card?: CardRelation[] | SingleCard[];
+	scorrimento_orizzontale?: boolean;
 }
 
-const { titolo = '', card = [] } = Astro.props;
+const { titolo = '', card = [], scorrimento_orizzontale = false } = Astro.props;
 
 function resolveImageSrc(value: string | undefined) {
 	return directusAssetUrl(value, {
@@ -45,13 +47,14 @@ function normalizeCards(input: CardRelation[] | SingleCard[]) {
 					? (entry.single_card_id as SingleCard)
 					: null;
 			}
-			if (
-				'titolo_card' in entry ||
-				'sottotitolo_card' in entry ||
-				'immagine' in entry ||
-				'href' in entry ||
-				'link_label' in entry
-			) {
+		if (
+			'titolo_card' in entry ||
+			'sottotitolo_card' in entry ||
+			'immagine' in entry ||
+			'href' in entry ||
+			'link_label' in entry ||
+			'link_esterno' in entry
+		) {
 				return entry as SingleCard;
 			}
 			return null;
@@ -60,6 +63,7 @@ function normalizeCards(input: CardRelation[] | SingleCard[]) {
 }
 
 function getCardHref(card: SingleCard) {
+	if (card.link_esterno?.trim()) return card.link_esterno.trim();
 	if (card.href) return card.href;
 	if (card.link && typeof card.link === 'object' && card.link.slug) {
 		return card.link.slug === 'home' ? '/' : `/${card.link.slug}`;
@@ -75,32 +79,105 @@ const cards = normalizeCards(card);
 		<div class="cards_block_inner">
 			{titolo && <h2 class="cards_block_title">{titolo}</h2>}
 
-			<div class="cards_grid">
-				{cards.map((single) => {
-					const href = getCardHref(single);
-					const hasLabelLink = Boolean(single.link_label?.trim());
-					const Tag = href ? 'a' : 'div';
-					const imageSrc = resolveImageSrc(single.immagine);
+			{scorrimento_orizzontale ? (
+				<div class="cards_slider swiper" data-cards-slider>
+					<div class="swiper-wrapper">
+						{cards.map((single) => {
+							const href = getCardHref(single);
+							const hasLabelLink = Boolean(single.link_label?.trim());
+							const Tag = href ? 'a' : 'div';
+							const imageSrc = resolveImageSrc(single.immagine);
+							const isExternal = Boolean(single.link_esterno?.trim());
 
-					return (
-						<Tag class="cards_card" href={href || undefined}>
-							{imageSrc && (
-								<div class="cards_card_media">
-									<img src={imageSrc} alt={single.titolo_card || ''} loading="lazy" />
-								</div>
-							)}
-							{single.titolo_card && <h3 class="cards_card_title">{single.titolo_card}</h3>}
-							{single.sottotitolo_card && (
-								<p class="cards_card_subtitle">{single.sottotitolo_card}</p>
-							)}
-							{hasLabelLink && <span class="cards_card_link">{single.link_label}</span>}
-						</Tag>
-					);
-				})}
-			</div>
+							return (
+								<Tag class="cards_card swiper-slide" href={href || undefined} target={isExternal ? '_blank' : undefined} rel={isExternal ? 'noopener noreferrer' : undefined}>
+									{imageSrc && (
+										<div class="cards_card_media">
+											<img src={imageSrc} alt={single.titolo_card || ''} loading="lazy" />
+										</div>
+									)}
+									{single.titolo_card && <h3 class="cards_card_title">{single.titolo_card}</h3>}
+									{single.sottotitolo_card && (
+										<p class="cards_card_subtitle">{single.sottotitolo_card}</p>
+									)}
+									{hasLabelLink && <span class="cards_card_link">{single.link_label}</span>}
+								</Tag>
+							);
+						})}
+					</div>
+					{cards.length > 1 && <div class="swiper-pagination"></div>}
+					{cards.length > 1 && <div class="swiper-button-prev"></div>}
+					{cards.length > 1 && <div class="swiper-button-next"></div>}
+				</div>
+			) : (
+				<div class="cards_grid">
+					{cards.map((single) => {
+						const href = getCardHref(single);
+						const hasLabelLink = Boolean(single.link_label?.trim());
+						const Tag = href ? 'a' : 'div';
+						const imageSrc = resolveImageSrc(single.immagine);
+						const isExternal = Boolean(single.link_esterno?.trim());
+
+						return (
+							<Tag class="cards_card" href={href || undefined} target={isExternal ? '_blank' : undefined} rel={isExternal ? 'noopener noreferrer' : undefined}>
+								{imageSrc && (
+									<div class="cards_card_media">
+										<img src={imageSrc} alt={single.titolo_card || ''} loading="lazy" />
+									</div>
+								)}
+								{single.titolo_card && <h3 class="cards_card_title">{single.titolo_card}</h3>}
+								{single.sottotitolo_card && (
+									<p class="cards_card_subtitle">{single.sottotitolo_card}</p>
+								)}
+								{hasLabelLink && <span class="cards_card_link">{single.link_label}</span>}
+							</Tag>
+						);
+					})}
+				</div>
+			)}
 		</div>
 	</section>
 )}
+
+<script is:inline>
+	(() => {
+		const init = () => {
+			const sliders = document.querySelectorAll('[data-cards-slider]');
+			sliders.forEach((slider) => {
+				if (!(slider instanceof HTMLElement) || slider.dataset.swiperInitialized === 'true' || !window.Swiper) return;
+
+				const slides = slider.querySelectorAll('.swiper-slide');
+				new window.Swiper(slider, {
+					loop: slides.length > 1,
+					speed: 500,
+					slidesPerView: 3,
+					spaceBetween: 24,
+					pagination: {
+						el: slider.querySelector('.swiper-pagination'),
+						clickable: true,
+					},
+					navigation: {
+						prevEl: slider.querySelector('.swiper-button-prev'),
+						nextEl: slider.querySelector('.swiper-button-next'),
+					},
+					breakpoints: {
+						0: { slidesPerView: 1, spaceBetween: 16 },
+						640: { slidesPerView: 2, spaceBetween: 18 },
+						1024: { slidesPerView: 3, spaceBetween: 24 },
+					},
+				});
+
+				slider.dataset.swiperInitialized = 'true';
+			});
+		};
+
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', init, { once: true });
+		} else {
+			init();
+		}
+	})();
+</script>
 
 <style>
 	.cards_block {
@@ -195,6 +272,45 @@ const cards = normalizeCards(card);
 	@media (max-width: 640px) {
 		.cards_grid {
 			grid-template-columns: 1fr;
+		}
+	}
+
+	.cards_slider {
+		padding: 0 50px 50px;
+		overflow: hidden;
+	}
+
+	.cards_slider :global(.swiper-wrapper) {
+		align-items: stretch;
+	}
+
+	.cards_slider .cards_card {
+		height: auto;
+	}
+
+	.cards_slider :global(.swiper-pagination) {
+		bottom: 0;
+	}
+
+	.cards_slider :global(.swiper-pagination-bullet) {
+		background: var(--arancione-battistel);
+		opacity: 0.35;
+	}
+
+	.cards_slider :global(.swiper-pagination-bullet-active) {
+		opacity: 1;
+	}
+
+	.cards_slider :global(.swiper-button-prev),
+	.cards_slider :global(.swiper-button-next) {
+		color: var(--arancione-battistel);
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+	@media (max-width: 640px) {
+		.cards_slider {
+			padding: 0 44px 44px;
 		}
 	}
 </style>
