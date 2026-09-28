@@ -72,6 +72,7 @@ type CardRelation = {
 type CardsBlockItem = {
 	id?: number;
 	titolo?: string;
+	Sottotitolo?: string;
 	scorrimento_orizzontale?: boolean;
 	card?: CardRelation[] | SingleCardItem[];
 };
@@ -86,6 +87,7 @@ type MarchiBlockItem = {
 	id?: number;
 	titolo?: string;
 	title?: string;
+	Sottotitolo?: string;
 };
 
 type CertificazioniBlockItem = {
@@ -305,7 +307,14 @@ function getBlockItemId(block: EditorEntry) {
 				if (!itemObject) return null;
 				const cardsBlock = itemObject as CardsBlockItem;
 				const cards = normalizeCards(cardsBlock.card);
-				renderedBlock = <CardsBlock titolo={cardsBlock.titolo} card={cards} scorrimento_orizzontale={cardsBlock.scorrimento_orizzontale} />;
+				renderedBlock = (
+					<CardsBlock
+						titolo={cardsBlock.titolo}
+						sottotitolo={cardsBlock.Sottotitolo}
+						card={cards}
+						scorrimento_orizzontale={cardsBlock.scorrimento_orizzontale}
+					/>
+				);
 				break;
 			}
 				case 'categorie_prodotti_block':
@@ -320,7 +329,12 @@ function getBlockItemId(block: EditorEntry) {
 				case 'marchi_block':
 				case 'marchi': {
 					const marchiBlock = itemObject as MarchiBlockItem | null;
-					renderedBlock = <MarchiBlock titolo={marchiBlock?.titolo || marchiBlock?.title} />;
+				renderedBlock = (
+					<MarchiBlock
+						titolo={marchiBlock?.titolo || marchiBlock?.title}
+						sottotitolo={marchiBlock?.Sottotitolo}
+					/>
+				);
 					break;
 				}
 				case 'certificazioni_block':

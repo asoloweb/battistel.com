@@ -60,16 +60,19 @@ let faviconSrc = '/favicon_fiamma.svg?v=1';
 			type="font/woff2"
 			crossorigin
 		/>
-		<link
-			rel="preload"
-			href="/vendor/swiper-bundle.min.css"
-			as="style"
-			onload="this.onload=null;this.rel='stylesheet'"
-		/>
+		<link rel="stylesheet" href="/vendor/swiper-bundle.min.css" />
 		<noscript>
-			<link rel="stylesheet" href="/vendor/swiper-bundle.min.css" />
+			<style>
+				.swiper-pending {
+					visibility: visible !important;
+				}
+			</style>
 		</noscript>
 		<style>
+			.swiper-pending {
+				visibility: hidden;
+			}
+
 			html.maintenance-pending body {
 				visibility: hidden;
 			}

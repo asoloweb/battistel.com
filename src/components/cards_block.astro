@@ -23,11 +23,12 @@ interface CardRelation {
 
 interface Props {
 	titolo?: string;
+	sottotitolo?: string;
 	card?: CardRelation[] | SingleCard[];
 	scorrimento_orizzontale?: boolean;
 }
 
-const { titolo = '', card = [], scorrimento_orizzontale = false } = Astro.props;
+const { titolo = '', sottotitolo = '', card = [], scorrimento_orizzontale = false } = Astro.props;
 
 function resolveImageSrc(value: string | undefined) {
 	return directusAssetUrl(value, {
@@ -78,9 +79,10 @@ const cards = normalizeCards(card);
 	<section class="cards_block">
 		<div class="cards_block_inner">
 			{titolo && <h2 class="cards_block_title">{titolo}</h2>}
+			{sottotitolo && <p class="cards_block_subtitle">{sottotitolo}</p>}
 
 			{scorrimento_orizzontale ? (
-				<div class="cards_slider swiper" data-cards-slider>
+				<div class="cards_slider swiper swiper-pending" data-cards-slider>
 					<div class="swiper-wrapper">
 						{cards.map((single) => {
 							const href = getCardHref(single);
@@ -168,6 +170,7 @@ const cards = normalizeCards(card);
 				});
 
 				slider.dataset.swiperInitialized = 'true';
+				window.requestAnimationFrame(() => slider.classList.remove('swiper-pending'));
 			});
 		};
 
@@ -190,11 +193,18 @@ const cards = normalizeCards(card);
 	}
 
 	.cards_block_title {
-		margin: 0 0 24px;
+		margin: 0;
 		color: var(--nero);
 		font-size: clamp(28px, 4vw, 42px);
 		border-bottom: 4px solid var(--arancione-battistel);
 		padding-bottom: 20px;
+	}
+
+	.cards_block_subtitle {
+		margin: 14px 0 24px;
+		color: rgba(0, 0, 0, 0.75);
+		font-size: 18px;
+		line-height: 1.45;
 	}
 
 	.cards_grid {

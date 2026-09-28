@@ -145,7 +145,7 @@ const newsSlugMap = buildNewsSlugMap(newsItems);
 						})}
 					</div>
 				) : (
-					<div class="news_block swiper" id={sliderId} data-swiper-autoplay="true">
+					<div class="news_block swiper swiper-pending" id={sliderId} data-swiper-autoplay="true">
 						<div class="swiper-wrapper">
 							{newsItems.map((news) => {
 								const newsSlug = typeof news.id === 'number' ? newsSlugMap.get(news.id) || '' : '';

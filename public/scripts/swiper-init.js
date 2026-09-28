@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     el.setAttribute('data-swiper-initialized', 'true');
+    window.requestAnimationFrame(() => el.classList.remove('swiper-pending'));
     el.addEventListener('click', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
