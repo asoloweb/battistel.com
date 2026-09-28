@@ -305,7 +305,7 @@ const productsData = products
 	.filter((entry): entry is { title: string; href: string; imageSrc: string; packaging: string[]; searchText: string; brandSearchText: string } => Boolean(entry));
 ---
 
-<section class="products_overview" data-aos="fade-up" data-aos-duration="1500">
+<section class="products_overview">
 	<div class="products_overview_inner">
 		<form class="products_search" data-products-overview-search-form role="search" method="get">
 			<input

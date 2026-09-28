@@ -81,7 +81,7 @@ const items = await fetchTimelineItems();
 						</div>
 					);
 					return (
-						<article class={`anni_timeline_item ${sideClass}`} data-aos="fade-up" data-aos-duration="900">
+						<article class={`anni_timeline_item ${sideClass}`}>
 							<div class="anni_timeline_mobile_stack">
 								<div class="anni_timeline_year anni_year_counter" data-counter-source={String(item.anno || '')}>
 									{item.anno}

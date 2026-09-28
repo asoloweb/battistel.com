@@ -47,8 +47,6 @@ function resolveVideoSrc(value: string) {
 ---
 
 <div
-	data-aos="fade-up"
-     data-aos-duration="1500"
 	class={`hero_block${inverti ? ' hero_block_inverted' : ''}`}
 	style={background_color ? `background-color: ${background_color};` : undefined}
 >
@@ -60,8 +58,6 @@ function resolveVideoSrc(value: string) {
 				<span class="hero_shape hero_shape_orange_secondary" aria-hidden="true"></span>
 				<img
 					class="hero_image hero_image_primary"
-					data-aos="fade-up"
-					data-aos-duration="700"
 					src={resolveImageSrc(primaryImage)}
 					alt={sottotitolo || titolo}
 					loading="eager"
@@ -71,9 +67,6 @@ function resolveVideoSrc(value: string) {
 				{secondaryImage && (
 					<img
 						class="hero_image hero_image_secondary"
-						data-aos="fade-up"
-						data-aos-duration="700"
-						data-aos-delay="170"
 						src={resolveImageSrc(secondaryImage)}
 						alt={sottotitolo || titolo}
 						loading="lazy"
@@ -150,25 +143,7 @@ function resolveVideoSrc(value: string) {
 		display: block;
 		border-radius: 999px;
 		pointer-events: none;
-		transform: scale(0.8);
-		opacity: 0;
 		transform-origin: center;
-	}
-
-	.hero_block.aos-animate .hero_shape {
-		animation: shapeScaleIn 700ms ease-out forwards;
-	}
-
-	.hero_block.aos-animate .hero_shape_orange {
-		animation-delay: 40ms;
-	}
-
-	.hero_block.aos-animate .hero_shape_blue {
-		animation: shapeScaleIn 700ms ease-out forwards, heroBluePulse 6s ease-in-out 900ms infinite;
-	}
-
-	.hero_block.aos-animate .hero_shape_orange_secondary {
-		animation-delay: 260ms;
 	}
 
 	.hero_shape_orange {
@@ -196,43 +171,6 @@ function resolveVideoSrc(value: string) {
 		top: 40%;
 		background: var(--arancione-battistel);
 		z-index: 2;
-	}
-
-	@keyframes shapeScaleIn {
-		from {
-			transform: scale(0.8);
-			opacity: 0;
-		}
-		to {
-			transform: scale(1);
-			opacity: 1;
-		}
-	}
-
-	@keyframes heroBluePulse {
-		0%,
-		100% {
-			transform: scale(1);
-		}
-
-		50% {
-			transform: scale(1.025);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.hero_shape {
-			transform: scale(1);
-			opacity: 1;
-		}
-
-		.hero_block.aos-animate .hero_shape {
-			animation: none;
-		}
-
-		.hero_block.aos-animate .hero_shape_blue {
-			transform: scale(1);
-		}
 	}
 
 	.colonna_testo .title {
